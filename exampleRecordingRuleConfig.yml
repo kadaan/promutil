@@ -1,0 +1,5 @@
+groups:
+  - name: example
+    rules:
+      - record: region:test:sum_rate1m
+        expr: sum(rate(test[1m])) by (region, az)
