@@ -4,12 +4,8 @@ import (
 	"time"
 )
 
-const (
-	DefaultOutputFile = "data.json.zst"
-)
-
-// ExportConfig represents the configuration of the export command.
-type ExportConfig struct {
+// MigrateConfig represents the configuration of the migrate command.
+type MigrateConfig struct {
 	Scheme                Scheme
 	Host                  string
 	Port                  uint16
@@ -17,5 +13,6 @@ type ExportConfig struct {
 	End                   time.Time
 	SampleInterval        time.Duration
 	MatcherSetExpressions []string
-	OutputFile            string
+	OutputDirectory       string
+	Parallelism           uint8
 }

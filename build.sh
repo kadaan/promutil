@@ -54,7 +54,7 @@ function run_docker() {
     --progress $progress_type \
     --output type=local,dest="${SCRIPT_DIR}"${ssh_flag} \
     --file "$dockerfile_path" \
-    --build-arg "VERSION=0.0.1" \
+    --build-arg "VERSION=0.0.2" \
     --build-arg "REVISION=$(git rev-parse HEAD)" \
     --build-arg "BRANCH=$(git rev-parse --abbrev-ref HEAD)" \
     --build-arg "USER=$USER" \

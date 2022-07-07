@@ -1,4 +1,4 @@
-package lib
+package generator
 
 import (
 	"context"
@@ -8,16 +8,16 @@ import (
 	"github.com/kadaan/promutil/config"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
-	prom_rules "github.com/prometheus/prometheus/rules"
+	promRules "github.com/prometheus/prometheus/rules"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb"
-	"github.com/prometheus/prometheus/tsdb/wal"
 	"math"
 	"time"
 )
 
-var(
+var (
 	expressionLanguage = gval.Full(
 		gval.Function("Abs", math.Abs),
 		gval.Function("Acos", math.Acos),
@@ -106,8 +106,8 @@ type generateConfig struct {
 	BlockLength    time.Duration
 	Metrics        []*metric
 	RecordingRules config.RecordingRules
-	Db		       *tsdb.DB
-	QueryFunc      prom_rules.QueryFunc
+	Db             *tsdb.DB
+	QueryFunc      promRules.QueryFunc
 }
 
 type metric struct {
@@ -127,66 +127,6 @@ type state struct {
 	Last      float64
 }
 
-func (t generator) Generate() error {
-	var samplesWritten int64
-	for blockStart := t.config.StartTime; blockStart.Before(t.config.EndTime); blockStart = blockStart.Add(t.config.BlockLength) {
-		blockEnd := blockStart.Add(t.config.BlockLength)
-		fmt.Printf("Creating block from %s to %s...", blockStart.Format(time.RFC3339), blockEnd.Format(time.RFC3339))
-		for sampleTimestamp := blockStart; sampleTimestamp.Before(blockEnd); sampleTimestamp = sampleTimestamp.Add(t.config.SampleInterval) {
-			appender := t.config.Db.Appender()
-			for _, metric := range t.config.Metrics {
-				for i, instance := range metric.Instances {
-					state := metric.States[i]
-					state.Timestamp = float64(sampleTimestamp.UnixNano())
-					value, err := metric.Expression.EvalFloat64(context.Background(), state)
-					if err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to evaluate expression %s", metric.ExpressionText))
-					}
-
-					state.Last = value
-					state.Index += 1
-					if math.IsNaN(value) {
-						continue
-					}
-					if _, err := appender.Add(instance, sampleTimestamp.UnixNano() / int64(time.Millisecond/time.Nanosecond), value); err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to add sample for metric '%s'", metric.Name))
-					}
-					samplesWritten++
-				}
-			}
-			err := appender.Commit()
-			if err != nil {
-				return errors.Wrap(err, "failed to commit metric samples")
-			}
-			appender = t.config.Db.Appender()
-			for _, recordingRule := range t.config.RecordingRules {
-				vector, err := t.config.QueryFunc(context.Background(), recordingRule.Expression.String(), sampleTimestamp)
-				if err != nil {
-					return errors.Wrap(err, fmt.Sprintf("failed to run recording rule '%s'", recordingRule.Name))
-				}
-				for _, sample := range vector {
-					lb := labels.NewBuilder(sample.Metric)
-					lb.Set(labels.MetricName, recordingRule.Name)
-					for _, l := range recordingRule.Labels {
-						lb.Set(l.Name, l.Value)
-					}
-					if _, err := appender.Add(lb.Labels(), sample.T, sample.V); err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to add sample for recording rule '%s'", recordingRule.Name))
-					}
-					samplesWritten++
-				}
-			}
-			err = appender.Commit()
-			if err != nil {
-				return errors.Wrap(err, "failed to commit samples recording rule samples")
-			}
-		}
-		fmt.Print("  done\n")
-	}
-	fmt.Printf("Wrote %d samples\n", samplesWritten)
-	return nil
-}
-
 func NewGenerator(c *config.GenerateConfig) (Generator, error) {
 	var metrics []*metric
 	for _, timeSeriesConfig := range c.MetricConfig.TimeSeries {
@@ -202,9 +142,9 @@ func NewGenerator(c *config.GenerateConfig) (Generator, error) {
 						builder.Set(name, value)
 					}
 					st := state{
-						Name:      timeSeriesConfig.Name,
-						Instance:  instance,
-						Labels:    builder.Labels().Map(),
+						Name:     timeSeriesConfig.Name,
+						Instance: instance,
+						Labels:   builder.Labels().Map(),
 					}
 					builder.Set(labels.MetricName, timeSeriesConfig.Name)
 					builder.Set(labels.InstanceName, instance)
@@ -230,37 +170,94 @@ func NewGenerator(c *config.GenerateConfig) (Generator, error) {
 		MaxSamples: 50_000_000,
 		Timeout:    2 * time.Minute,
 	})
-	dbOptions := &tsdb.Options{
-		WALSegmentSize:         wal.DefaultSegmentSize,
-		RetentionDuration:      int64(90 * 24 * time.Hour / time.Millisecond),
-		MinBlockDuration:       c.BlockLength.Milliseconds(),
-		MaxBlockDuration:       int64(36 * time.Hour / time.Millisecond),
-		NoLockfile:             true,
-		AllowOverlappingBlocks: true,
-		WALCompression:         false,
-		StripeSize:             tsdb.DefaultStripeSize,
-	}
-	db, err := tsdb.Open(c.OutputDirectory, log.NewNopLogger(), prometheus.DefaultRegisterer, dbOptions)
+	dbOptions := tsdb.DefaultOptions()
+	dbOptions.NoLockfile = true
+	dbOptions.AllowOverlappingBlocks = true
+
+	registry := prometheus.NewRegistry()
+	db, err := tsdb.Open(c.OutputDirectory, nil, registry, dbOptions, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open database")
 	}
 	db.EnableCompactions()
-	queryFunc := prom_rules.EngineQueryFunc(queryEngine, db)
-	config := &generateConfig{
+	queryFunc := promRules.EngineQueryFunc(queryEngine, db)
+	cfg := &generateConfig{
 		OutputDir:      c.OutputDirectory,
 		Logger:         log.NewNopLogger(),
 		Now:            now,
-		StartTime:      now.Add(-c.Duration),
-		EndTime:        now,
+		StartTime:      c.Start,
+		EndTime:        c.End,
 		SampleInterval: c.SampleInterval,
 		BlockLength:    c.BlockLength,
 		Metrics:        metrics,
 		RecordingRules: c.RuleConfig,
 		Db:             db,
-		QueryFunc: 		queryFunc,
+		QueryFunc:      queryFunc,
 	}
-	generator := &generator{config: config}
+	generator := &generator{config: cfg}
 	return generator, nil
+}
+
+func (t generator) Generate() error {
+	var samplesWritten int64
+	for blockStart := t.config.StartTime; blockStart.Before(t.config.EndTime); blockStart = blockStart.Add(t.config.BlockLength) {
+		blockEnd := blockStart.Add(t.config.BlockLength)
+		fmt.Printf("Creating block from %s to %s...", blockStart.Format(time.RFC3339), blockEnd.Format(time.RFC3339))
+		for sampleTimestamp := blockStart; sampleTimestamp.Before(blockEnd); sampleTimestamp = sampleTimestamp.Add(t.config.SampleInterval) {
+			appender := t.config.Db.Appender(context.TODO())
+			for _, metric := range t.config.Metrics {
+				for i, instance := range metric.Instances {
+					state := metric.States[i]
+					state.Timestamp = float64(sampleTimestamp.UnixNano())
+					value, err := metric.Expression.EvalFloat64(context.Background(), state)
+					if err != nil {
+						return errors.Wrap(err, fmt.Sprintf("failed to evaluate expression %s", metric.ExpressionText))
+					}
+
+					state.Last = value
+					state.Index += 1
+					if math.IsNaN(value) {
+						continue
+					}
+					var ref storage.SeriesRef
+					if _, err := appender.Append(ref, instance, sampleTimestamp.UnixNano()/int64(time.Millisecond/time.Nanosecond), value); err != nil {
+						return errors.Wrap(err, fmt.Sprintf("failed to add sample for metric '%s'", metric.Name))
+					}
+					samplesWritten++
+				}
+			}
+			err := appender.Commit()
+			if err != nil {
+				return errors.Wrap(err, "failed to commit metric samples")
+			}
+			appender = t.config.Db.Appender(context.TODO())
+			for _, recordingRule := range t.config.RecordingRules {
+				vector, err := t.config.QueryFunc(context.Background(), recordingRule.Query().String(), sampleTimestamp)
+				if err != nil {
+					return errors.Wrap(err, fmt.Sprintf("failed to run recording rule '%s'", recordingRule.Name))
+				}
+				for _, sample := range vector {
+					lb := labels.NewBuilder(sample.Metric)
+					lb.Set(labels.MetricName, recordingRule.Name())
+					for _, l := range recordingRule.Labels() {
+						lb.Set(l.Name, l.Value)
+					}
+					var ref storage.SeriesRef
+					if _, err := appender.Append(ref, lb.Labels(), sample.T, sample.V); err != nil {
+						return errors.Wrap(err, fmt.Sprintf("failed to add sample for recording rule '%s'", recordingRule.Name))
+					}
+					samplesWritten++
+				}
+			}
+			err = appender.Commit()
+			if err != nil {
+				return errors.Wrap(err, "failed to commit samples recording rule samples")
+			}
+		}
+		fmt.Print("  done\n")
+	}
+	fmt.Printf("Wrote %d samples\n", samplesWritten)
+	return nil
 }
 
 func (t generator) Close() error {

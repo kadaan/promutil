@@ -6,23 +6,36 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 	"os"
+	"time"
 )
 
 const (
-	durationKey        = "duration"
+	directoryKey       = "directory"
+	outputDirectoryKey = "output-directory"
+	startKey           = "start"
+	endKey             = "end"
 	sampleIntervalKey  = "sample-interval"
+	matcherKey         = "matcher"
+	schemeKey          = "scheme"
+	hostKey            = "host"
+	portKey            = "port"
+	parallelismKey     = "parallelism"
+	ruleConfigFileKey  = "rule-config-file"
+	ruleGroupFilterKey = "rule-group-filter"
+	ruleNameFilterKey  = "rule-name-filter"
 )
 
 var (
+	end       = time.Now().UTC()
+	start     = end.Add(-6 * time.Hour)
 	verbosity int
-	cfgFile string
-    rootCmd = &cobra.Command{
+	rootCmd   = &cobra.Command{
 		Use:   "promutil",
 		Short: "prometheus utilities",
-		Long: `promutil is a collection of utilities that work with prometheus.`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		Long:  `promutil is a collection of utilities that work with prometheus.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			klog.InitFlags(nil)
-			goflag.CommandLine.Parse([]string{
+			return goflag.CommandLine.Parse([]string{
 				"--skip_headers=true",
 				fmt.Sprintf("-v=%d", verbosity),
 			})

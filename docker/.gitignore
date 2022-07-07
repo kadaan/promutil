@@ -1,0 +1,4 @@
+*
+!grafana
+!prometheus
+!docker-compose.yml

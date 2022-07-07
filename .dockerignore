@@ -1,5 +1,6 @@
 **/.git
 .idea/
 data/
+docker/
 dist/*
 .go-version

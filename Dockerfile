@@ -7,7 +7,7 @@ ARG HOST
 ARG BUILD_DATE
 ARG BRANCH
 
-FROM golang:1.14.1-alpine AS base
+FROM golang:1.18.3-alpine AS base
 ARG VERSION
 ARG REVISION
 ARG USER
