@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/kadaan/promutil/config"
 	"github.com/kadaan/promutil/lib/backfiller"
+	"github.com/kadaan/promutil/lib/block"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,8 +25,7 @@ var (
 
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := backfiller.Backfill(&backfillConfig)
-			if err != nil {
+			if err := backfiller.Backfill(&backfillConfig); err != nil {
 				return errors.Wrap(err, "backfill of data failed")
 			}
 			return nil
@@ -59,6 +59,6 @@ func init() {
 	backfillCmd.Flags().Var(config.NewRegexValue(&backfillConfig.RuleNameFilters, config.DefaultRuleNameFilters), ruleNameFilterKey, "rule name filters which determine the rules groups to backfill")
 	_ = viper.BindPFlag(ruleNameFilterKey, backfillCmd.Flags().Lookup(ruleNameFilterKey))
 
-	backfillCmd.Flags().Uint8Var(&backfillConfig.Parallelism, parallelismKey, backfiller.MaxParallelism, "parallelism for migration")
+	backfillCmd.Flags().Uint8Var(&backfillConfig.Parallelism, parallelismKey, block.MaxParallelism, "parallelism for migration")
 	_ = viper.BindPFlag(parallelismKey, backfillCmd.Flags().Lookup(parallelismKey))
 }

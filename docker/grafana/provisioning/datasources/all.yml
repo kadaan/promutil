@@ -1,6 +1,7 @@
 apiVersion: 1
 datasources:
   - name: prometheus-us-east-1
+    uid: prometheus__us-east-1
     type: prometheus
     access: proxy
     orgId: 1

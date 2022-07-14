@@ -4,17 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/PaesslerAG/gval"
-	"github.com/go-kit/kit/log"
 	"github.com/kadaan/promutil/config"
+	"github.com/kadaan/promutil/lib/block"
+	"github.com/kadaan/promutil/lib/database"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
-	promRules "github.com/prometheus/prometheus/rules"
-	"github.com/prometheus/prometheus/storage"
-	"github.com/prometheus/prometheus/tsdb"
 	"math"
-	"time"
 )
 
 var (
@@ -88,28 +84,6 @@ var (
 		gval.Function("Yn", math.Yn))
 )
 
-type generator struct {
-	config *generateConfig
-}
-
-type Generator interface {
-	Generate() error
-}
-
-type generateConfig struct {
-	OutputDir      string
-	Logger         log.Logger
-	Now            time.Time
-	StartTime      time.Time
-	EndTime        time.Time
-	SampleInterval time.Duration
-	BlockLength    time.Duration
-	Metrics        []*metric
-	RecordingRules config.RecordingRules
-	Db             *tsdb.DB
-	QueryFunc      promRules.QueryFunc
-}
-
 type metric struct {
 	Name           string
 	Expression     gval.Evaluable
@@ -120,39 +94,64 @@ type metric struct {
 
 type state struct {
 	Name      string
-	Instance  string
 	Labels    map[string]string
 	Index     float64
 	Timestamp float64
 	Last      float64
 }
 
-func NewGenerator(c *config.GenerateConfig) (Generator, error) {
+func Generate(c *config.GenerateConfig) error {
+	metrics, err := createMetricSpecifications(c)
+	if err != nil {
+		return errors.Wrap(err, "failed to create metric specifications")
+	}
+	plannerConfig := block.NewPlannerConfig(c.OutputDirectory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
+	generator := &planGenerator{metrics: metrics}
+	executorCreator := &planExecutorCreator{}
+	writer := block.NewPlannedBlockWriter[planData](plannerConfig, generator, executorCreator)
+	return writer.Run()
+}
+
+func createMetricSpecifications(c *config.GenerateConfig) ([]*metric, error) {
 	var metrics []*metric
 	for _, timeSeriesConfig := range c.MetricConfig.TimeSeries {
 		if expressionEngine, err := getExpressionEngine(timeSeriesConfig.Expression); err != nil {
-			return nil, nil
+			return nil, err
 		} else {
 			var lbls []labels.Labels
 			var sts []*state
-			for _, instance := range timeSeriesConfig.Instances {
+			if len(timeSeriesConfig.Instances) == 0 {
 				for _, labelSet := range timeSeriesConfig.Labels {
 					builder := labels.NewBuilder(labels.Labels{})
 					for name, value := range labelSet {
 						builder.Set(name, value)
 					}
 					st := state{
-						Name:     timeSeriesConfig.Name,
-						Instance: instance,
-						Labels:   builder.Labels().Map(),
+						Name:   timeSeriesConfig.Name,
+						Labels: builder.Labels().Map(),
 					}
 					builder.Set(labels.MetricName, timeSeriesConfig.Name)
-					builder.Set(labels.InstanceName, instance)
 					lbls = append(lbls, builder.Labels())
 					sts = append(sts, &st)
 				}
+			} else {
+				for _, instance := range timeSeriesConfig.Instances {
+					for _, labelSet := range timeSeriesConfig.Labels {
+						builder := labels.NewBuilder(labels.Labels{})
+						for name, value := range labelSet {
+							builder.Set(name, value)
+						}
+						st := state{
+							Name:   timeSeriesConfig.Name,
+							Labels: builder.Labels().Map(),
+						}
+						builder.Set(labels.MetricName, timeSeriesConfig.Name)
+						builder.Set(labels.InstanceName, instance)
+						lbls = append(lbls, builder.Labels())
+						sts = append(sts, &st)
+					}
+				}
 			}
-
 			metric := &metric{
 				Name:           timeSeriesConfig.Name,
 				Expression:     expressionEngine,
@@ -163,108 +162,75 @@ func NewGenerator(c *config.GenerateConfig) (Generator, error) {
 			metrics = append(metrics, metric)
 		}
 	}
-	now := time.Now()
-	queryEngine := promql.NewEngine(promql.EngineOpts{
-		Logger:     log.NewNopLogger(),
-		Reg:        prometheus.DefaultRegisterer,
-		MaxSamples: 50_000_000,
-		Timeout:    2 * time.Minute,
-	})
-	dbOptions := tsdb.DefaultOptions()
-	dbOptions.NoLockfile = true
-	dbOptions.AllowOverlappingBlocks = true
-
-	registry := prometheus.NewRegistry()
-	db, err := tsdb.Open(c.OutputDirectory, nil, registry, dbOptions, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to open database")
-	}
-	db.EnableCompactions()
-	queryFunc := promRules.EngineQueryFunc(queryEngine, db)
-	cfg := &generateConfig{
-		OutputDir:      c.OutputDirectory,
-		Logger:         log.NewNopLogger(),
-		Now:            now,
-		StartTime:      c.Start,
-		EndTime:        c.End,
-		SampleInterval: c.SampleInterval,
-		BlockLength:    c.BlockLength,
-		Metrics:        metrics,
-		RecordingRules: c.RuleConfig,
-		Db:             db,
-		QueryFunc:      queryFunc,
-	}
-	generator := &generator{config: cfg}
-	return generator, nil
-}
-
-func (t generator) Generate() error {
-	var samplesWritten int64
-	for blockStart := t.config.StartTime; blockStart.Before(t.config.EndTime); blockStart = blockStart.Add(t.config.BlockLength) {
-		blockEnd := blockStart.Add(t.config.BlockLength)
-		fmt.Printf("Creating block from %s to %s...", blockStart.Format(time.RFC3339), blockEnd.Format(time.RFC3339))
-		for sampleTimestamp := blockStart; sampleTimestamp.Before(blockEnd); sampleTimestamp = sampleTimestamp.Add(t.config.SampleInterval) {
-			appender := t.config.Db.Appender(context.TODO())
-			for _, metric := range t.config.Metrics {
-				for i, instance := range metric.Instances {
-					state := metric.States[i]
-					state.Timestamp = float64(sampleTimestamp.UnixNano())
-					value, err := metric.Expression.EvalFloat64(context.Background(), state)
-					if err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to evaluate expression %s", metric.ExpressionText))
-					}
-
-					state.Last = value
-					state.Index += 1
-					if math.IsNaN(value) {
-						continue
-					}
-					var ref storage.SeriesRef
-					if _, err := appender.Append(ref, instance, sampleTimestamp.UnixNano()/int64(time.Millisecond/time.Nanosecond), value); err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to add sample for metric '%s'", metric.Name))
-					}
-					samplesWritten++
-				}
-			}
-			err := appender.Commit()
-			if err != nil {
-				return errors.Wrap(err, "failed to commit metric samples")
-			}
-			appender = t.config.Db.Appender(context.TODO())
-			for _, recordingRule := range t.config.RecordingRules {
-				vector, err := t.config.QueryFunc(context.Background(), recordingRule.Query().String(), sampleTimestamp)
-				if err != nil {
-					return errors.Wrap(err, fmt.Sprintf("failed to run recording rule '%s'", recordingRule.Name))
-				}
-				for _, sample := range vector {
-					lb := labels.NewBuilder(sample.Metric)
-					lb.Set(labels.MetricName, recordingRule.Name())
-					for _, l := range recordingRule.Labels() {
-						lb.Set(l.Name, l.Value)
-					}
-					var ref storage.SeriesRef
-					if _, err := appender.Append(ref, lb.Labels(), sample.T, sample.V); err != nil {
-						return errors.Wrap(err, fmt.Sprintf("failed to add sample for recording rule '%s'", recordingRule.Name))
-					}
-					samplesWritten++
-				}
-			}
-			err = appender.Commit()
-			if err != nil {
-				return errors.Wrap(err, "failed to commit samples recording rule samples")
-			}
-		}
-		fmt.Print("  done\n")
-	}
-	fmt.Printf("Wrote %d samples\n", samplesWritten)
-	return nil
-}
-
-func (t generator) Close() error {
-	return t.config.Db.Close()
+	return metrics, nil
 }
 
 func getExpressionEngine(expression string) (gval.Evaluable, error) {
 	evaluable, err := expressionLanguage.NewEvaluable(expression)
 	return evaluable, errors.Wrap(err, fmt.Sprintf("failed to parse expression: '%s'", expression))
+}
+
+type planData struct {
+	metric *metric
+}
+
+func (p planData) String() string {
+	return p.metric.Name
+}
+
+type planGenerator struct {
+	metrics []*metric
+}
+
+func (p *planGenerator) Generate(chunkStart int64, chunkEnd int64, stepDuration int64) []block.PlanEntry[planData] {
+	var planEntries []block.PlanEntry[planData]
+	for _, metric := range p.metrics {
+		d := &planData{
+			metric: metric,
+		}
+		planEntries = append(planEntries, block.NewPlanEntry("generate", chunkStart, chunkEnd, stepDuration, d))
+	}
+	return planEntries
+}
+
+type planExecutorCreator struct {
+}
+
+func (p *planExecutorCreator) Create(_ string, appender database.Appender) (block.PlanExecutor[planData], error) {
+	return &planExecutor{
+		appender: appender,
+	}, nil
+}
+
+type planExecutor struct {
+	appender database.Appender
+}
+
+func (p *planExecutor) Execute(_ context.Context, _ block.PlanLogger[planData], plan block.PlanEntry[planData]) error {
+	m := plan.Data().metric
+	sample := &promql.Sample{}
+	for i, instance := range m.Instances {
+		s := m.States[i]
+		for sampleTimestamp := plan.Start(); sampleTimestamp < plan.End(); sampleTimestamp += plan.Step() {
+			s.Timestamp = float64(plan.Start())
+			value, errE := m.Expression.EvalFloat64(context.Background(), s)
+			if errE != nil {
+				return errors.Wrap(errE, fmt.Sprintf("failed to evaluate expression %s", m.ExpressionText))
+			}
+
+			s.Last = value
+			s.Index += 1
+			if math.IsNaN(value) {
+				continue
+			}
+
+			sample.T = sampleTimestamp
+			sample.V = value
+			sample.Metric = instance
+			if err := p.appender.Add(sample); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

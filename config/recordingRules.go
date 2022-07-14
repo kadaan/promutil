@@ -17,6 +17,10 @@ type RecordingRule struct {
 	Group string
 }
 
+func (r RecordingRule) String() string {
+	return r.Name()
+}
+
 type recordingRulesArrayValue struct {
 	value   *RecordingRules
 	changed bool

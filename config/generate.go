@@ -12,9 +12,8 @@ type GenerateConfig struct {
 	End              time.Time
 	OutputDirectory  string
 	SampleInterval   time.Duration
-	BlockLength      time.Duration
 	MetricConfigFile string
 	MetricConfig     *MetricConfig
-	RuleConfigFiles  []string
 	RuleConfig       RecordingRules
+	Parallelism      uint8
 }

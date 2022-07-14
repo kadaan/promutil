@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ghodss/yaml"
 	"github.com/kadaan/promutil/config"
+	"github.com/kadaan/promutil/lib/block"
 	"github.com/kadaan/promutil/lib/generator"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -36,11 +37,10 @@ var (
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			generator, err := generator.NewGenerator(&generateConfig)
-			if err != nil {
-				return errors.Wrap(err, "generation of TSDB data failed")
+			if err := generator.Generate(&generateConfig); err != nil {
+				return errors.Wrap(err, "generation of data failed")
 			}
-			return generator.Generate()
+			return nil
 		},
 	}
 )
@@ -49,10 +49,10 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().Var(config.NewTimeValue(&generateConfig.Start, start), startKey, `time to start generating from`)
-	_ = viper.BindPFlag(startKey, exportCmd.Flags().Lookup(startKey))
+	_ = viper.BindPFlag(startKey, generateCmd.Flags().Lookup(startKey))
 
 	generateCmd.Flags().Var(config.NewTimeValue(&generateConfig.End, end), endKey, `time to generate up through`)
-	_ = viper.BindPFlag(endKey, exportCmd.Flags().Lookup(endKey))
+	_ = viper.BindPFlag(endKey, generateCmd.Flags().Lookup(endKey))
 
 	generateCmd.Flags().StringVar(&generateConfig.OutputDirectory, outputDirectoryKey, config.DefaultDataDirectory, "output directory to write tsdb data")
 	_ = generateCmd.MarkFlagDirname(outputDirectoryKey)
@@ -69,6 +69,9 @@ func init() {
 	generateCmd.Flags().Var(config.NewRecordingRulesValue(&generateConfig.RuleConfig), ruleConfigFileKey, "config file defining the rules to evaluate")
 	_ = generateCmd.MarkFlagFilename(ruleConfigFileKey, config.YamlFileExtensions...)
 	_ = viper.BindPFlag(ruleConfigFileKey, generateCmd.Flags().Lookup(ruleConfigFileKey))
+
+	generateCmd.Flags().Uint8Var(&generateConfig.Parallelism, parallelismKey, block.MaxParallelism, "parallelism for generation")
+	_ = viper.BindPFlag(parallelismKey, generateCmd.Flags().Lookup(parallelismKey))
 }
 
 func loadMetricConfig() (*config.MetricConfig, error) {

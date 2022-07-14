@@ -131,14 +131,14 @@ func (a *safeAppender) Add(sample *promql.Sample) error {
 			return errF
 		}
 		a.blockStart = a.blockStart + a.blockFlushDuration
-		if _, err = (*a.appender).Append(0, sample.Metric, sample.T, sample.V); err != nil {
+		if err = a.append(sample); err != nil {
 			defer a.mtx.RUnlock()
 			return err
 		}
 		return nil
 	}
 
-	if _, err = (*a.appender).Append(0, sample.Metric, sample.T, sample.V); err != nil {
+	if err = a.append(sample); err != nil {
 		defer a.mtx.RUnlock()
 		return err
 	}
@@ -156,6 +156,21 @@ func (a *safeAppender) Add(sample *promql.Sample) error {
 		}
 	} else {
 		a.mtx.RUnlock()
+	}
+	return nil
+}
+
+func (a *safeAppender) append(sample *promql.Sample) error {
+	_, err := (*a.appender).Append(0, sample.Metric, sample.T, sample.V)
+	if err != nil {
+		switch err.Error() {
+		case storage.ErrOutOfOrderSample.Error():
+		case storage.ErrOutOfBounds.Error():
+		case storage.ErrDuplicateSampleForTimestamp.Error():
+			return nil
+		default:
+			return err
+		}
 	}
 	return nil
 }

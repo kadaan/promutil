@@ -27,8 +27,7 @@ var (
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := migrator.Migrate(&migrateConfig)
-			if err != nil {
+			if err := migrator.Migrate(&migrateConfig); err != nil {
 				return errors.Wrap(err, "migrate of data failed")
 			}
 			return nil
