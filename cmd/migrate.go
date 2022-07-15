@@ -19,7 +19,7 @@ var (
 	migrateCmd = &cobra.Command{
 		Use:   "migrate",
 		Short: "Migrate prometheus data",
-		Long:  `Migrate the specified data from a remote prometheus to a local prometheus.`,
+		Long:  `Migrate the specified data from a remote prometheus to a local prometheus TSDB.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if !migrateConfig.Start.Before(migrateConfig.End) {
 				return errors.New("start time is not before end time")

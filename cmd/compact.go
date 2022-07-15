@@ -14,8 +14,8 @@ var (
 	// compactCmd represents the compact command
 	compactCmd = &cobra.Command{
 		Use:   "compact",
-		Short: "Compact prometheus data",
-		Long:  `Compact the specified prometheus data directory.`,
+		Short: "Compact prometheus TSDB",
+		Long:  `Compact the specified local prometheus TSDB.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := compactor.Compact(&compactConfig)
 			if err != nil {

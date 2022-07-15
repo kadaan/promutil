@@ -15,8 +15,8 @@ var (
 	// backfillCmd represents the backfill command
 	backfillCmd = &cobra.Command{
 		Use:   "backfill",
-		Short: "Backfill prometheus data",
-		Long:  `Backfill prometheus data from the specified rule to a local prometheus.`,
+		Short: "Backfill prometheus recording rule data",
+		Long:  `Backfill prometheus recording rule data from the specified rules to a local prometheus TSDB.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if !backfillConfig.Start.Before(backfillConfig.End) {
 				return errors.New("start time is not before end time")

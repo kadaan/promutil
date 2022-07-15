@@ -8,14 +8,14 @@ import (
 
 // completionCmd represents the completion command
 var (
-	completionShells = map[string]func(*cobra.Command) error {
+	completionShells = map[string]func(*cobra.Command) error{
 		"bash": bashCompletion,
-		"zsh": zshCompletion,
+		"zsh":  zshCompletion,
 	}
 	completionCmd = &cobra.Command{
-		Use: "completion SHELL",
+		Use:                   "completion SHELL",
 		DisableFlagsInUseLine: true,
-		Short: "Output shell completion code for the specified shell (bash or zsh)",
+		Short:                 "Output shell completion code for the specified shell (bash or zsh)",
 		Long: `Output shell completion code for the specified shell (bash or zsh).
 The shell code must be evaluated to provide interactive
 completion of promutil commands.  This can be done by sourcing it from
@@ -66,5 +66,5 @@ func bashCompletion(cmd *cobra.Command) error {
 }
 
 func zshCompletion(cmd *cobra.Command) error {
-	return  cmd.GenZshCompletion(os.Stdout)
+	return cmd.GenZshCompletion(os.Stdout)
 }

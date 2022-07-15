@@ -32,7 +32,9 @@ var (
 	rootCmd   = &cobra.Command{
 		Use:   "promutil",
 		Short: "prometheus utilities",
-		Long:  `promutil is a collection of utilities that work with prometheus.`,
+		Long: `promutil provides a set of utilities for working with a Prometheus 
+TSDB.  It allows data generation, recording rule backfilling, data 
+migration, etc.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			klog.InitFlags(nil)
 			return goflag.CommandLine.Parse([]string{

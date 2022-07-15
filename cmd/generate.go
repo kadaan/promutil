@@ -24,7 +24,7 @@ var (
 	generateCmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generate prometheus data",
-		Long:  `Generate prometheus data based on the provided data definition.`,
+		Long:  `Generate prometheus data based on the provided data definitions to a local prometheus TSDB.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if !generateConfig.Start.Before(generateConfig.End) {
 				return errors.New("start time is not before end time")
