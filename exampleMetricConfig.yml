@@ -1,0 +1,39 @@
+timeSeries:
+  - name: test
+    instances:
+      - server1
+      - server2
+    labels:
+      - job: job1
+        region: region1
+        az: region1-a
+        method: GET
+      - job: job1
+        region: region1
+        az: region1-a
+        method: POST
+      - job: job1
+        region: region1
+        az: region1-b
+        method: GET
+      - job: job1
+        region: region1
+        az: region1-b
+        method: POST
+      - job: job1
+        region: region2
+        az: region2-a
+        method: GET
+      - job: job1
+        region: region2
+        az: region2-b
+        method: GET
+      - job: job1
+        region: region2
+        az: region2-a
+        method: POST
+      - job: job1
+        region: region2
+        az: region2-b
+        method: POST
+    expression: 'Instance == "server2" && Index < 240 ? NaN() : (IsNaN(Last) ? 0 : Abs(Sin(Index/1440))*100 + Last)'
