@@ -21,17 +21,21 @@ RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk ln -vs /var/c
     mkdir /archives && \
     mkdir /dist
 COPY . .
+WORKDIR /src/lib/web/ui
+RUN go generate
+WORKDIR /src
 
-FROM base as builder
+FROM base as darwin
 RUN GOOS=darwin GARCH=amd64 go build \
             -o /dist/promutil \
             -a \
             -ldflags "-s -w -extldflags \"-fno-PIC -static\" -X github.com/kadaan/promutil/version.Version=$VERSION -X github.com/kadaan/promutil/version.Revision=$REVISION -X github.com/kadaan/promutil/version.Branch=$BRANCH -X github.com/kadaan/promutil/version.BuildUser=$USER -X github.com/kadaan/promutil/version.BuildHost=$HOST -X github.com/kadaan/promutil/version.BuildDate=$BUILD_DATE" \
             -tags 'osusergo netgo' \
             -installsuffix netgo && \
-    tar -czf "/archives/promutil_darwin.tar.gz" -C "/dist" . && \
-    rm -rf /dist/* && \
-    GOOS=linux GARCH=amd64 go build \
+    tar -czf "/archives/promutil_darwin.tar.gz" -C "/dist" .
+
+FROM base as linux
+RUN GOOS=linux GARCH=amd64 go build \
             -o /dist/promutil \
             -a \
             -ldflags "-s -w -X github.com/kadaan/promutil/version.Version=$VERSION -X github.com/kadaan/promutil/version.Revision=$REVISION -X github.com/kadaan/promutil/version.Branch=$BRANCH -X github.com/kadaan/promutil/version.BuildUser=$USER -X github.com/kadaan/promutil/version.BuildHost=$HOST -X github.com/kadaan/promutil/version.BuildDate=$BUILD_DATE" \
@@ -40,4 +44,5 @@ RUN GOOS=darwin GARCH=amd64 go build \
     tar -czf "/archives/promutil_linux.tar.gz" -C "/dist" .
 
 FROM scratch as artifact
-COPY --from=builder /archives/ ./dist/
+COPY --from=darwin /archives/ ./dist/
+COPY --from=linux /archives/ ./dist/

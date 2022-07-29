@@ -2,15 +2,22 @@ package backfiller
 
 import (
 	"context"
-	"fmt"
 	"github.com/kadaan/promutil/config"
 	"github.com/kadaan/promutil/lib/block"
+	"github.com/kadaan/promutil/lib/command"
 	"github.com/kadaan/promutil/lib/database"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"regexp"
 )
 
-func Backfill(c *config.BackfillConfig) error {
+func NewBackfiller() command.Task[config.BackfillConfig] {
+	return &backfiller{}
+}
+
+type backfiller struct {
+}
+
+func (t *backfiller) Run(c *config.BackfillConfig) error {
 	var recordingRules config.RecordingRules
 	for _, r := range c.RuleConfig {
 		if shouldIncludeRecordingRule(c, r) {
@@ -18,10 +25,10 @@ func Backfill(c *config.BackfillConfig) error {
 		}
 	}
 	if len(recordingRules) == 0 {
-		return fmt.Errorf("no recording rules left after filtering")
+		return errors.New("no recording rules left after filtering")
 	}
 
-	qdb, err := database.NewDatabase(c.OutputDirectory, database.DefaultBlockDuration, database.DefaultRetention,
+	qdb, err := database.NewDatabase(c.Directory, database.DefaultBlockDuration, database.DefaultRetention,
 		context.Background())
 	if err != nil {
 		return errors.Wrap(err, "failed to open query db")
@@ -35,7 +42,7 @@ func Backfill(c *config.BackfillConfig) error {
 		return errors.Wrap(err, "failed to get query manager")
 	}
 
-	plannerConfig := block.NewPlannerConfig(c.OutputDirectory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
+	plannerConfig := block.NewPlannerConfig(c.Directory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
 	generator := &planGenerator{recordingRules: recordingRules}
 	executorCreator := &planExecutorCreator{queryManager: queryManager}
 	writer := block.NewPlannedBlockWriter[config.RecordingRule](plannerConfig, generator, executorCreator)
@@ -87,14 +94,14 @@ type planExecutor struct {
 func (p *planExecutor) Execute(ctx context.Context, _ block.PlanLogger[config.RecordingRule], plan block.PlanEntry[config.RecordingRule]) error {
 	res, err := p.querier.QueryRangeRule(ctx, plan.Data(), plan.Start(), plan.End(), plan.Step())
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to run recording rule '%s'", plan.Data().Name))
+		return errors.Wrap(err, "failed to run recording rule '%s'", plan.Data().Name)
 	}
 	for {
 		if ok, sample := res.Next(); !ok {
 			break
 		} else {
 			if err = p.appender.Add(sample); err != nil {
-				return err
+				return errors.Wrap(err, "failed to add sample: %s", sample)
 			}
 		}
 	}

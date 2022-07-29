@@ -1,18 +1,18 @@
 package config
 
 import (
+	"github.com/prometheus/prometheus/model/labels"
+	"net/url"
 	"time"
 )
 
 // MigrateConfig represents the configuration of the migrate command.
 type MigrateConfig struct {
-	Scheme                Scheme
-	Host                  string
-	Port                  uint16
-	Start                 time.Time
-	End                   time.Time
-	SampleInterval        time.Duration
-	MatcherSetExpressions []string
-	OutputDirectory       string
-	Parallelism           uint8
+	Host           *url.URL
+	Start          time.Time
+	End            time.Time
+	SampleInterval time.Duration
+	Matchers       map[string][]*labels.Matcher
+	Directory      string
+	Parallelism    uint8
 }

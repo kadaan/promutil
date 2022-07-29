@@ -1,11 +1,9 @@
 package main
 
 import (
-"github.com/kadaan/promutil/cmd"
-"log"
+	"github.com/kadaan/promutil/cmd"
 )
 
 func main() {
-	log.SetFlags(0)
-	cmd.Execute()
+	cmd.Root.Execute()
 }

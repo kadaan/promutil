@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-kit/kit/log"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb"
-	errors2 "github.com/prometheus/prometheus/tsdb/errors"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -88,7 +87,7 @@ func (a *appendManager) Close() error {
 		}
 	}
 	if len(errs) > 0 {
-		return errors2.NewMulti(errs...).Err()
+		return errors.NewMulti(errs, "failed to close appenders")
 	}
 	a.resetFunc()
 	return nil
@@ -128,19 +127,19 @@ func (a *safeAppender) Add(sample *promql.Sample) error {
 		defer a.mtx.Unlock()
 		errF := a.flush()
 		if errF != nil {
-			return errF
+			return errors.Wrap(errF, "failed to flush")
 		}
 		a.blockStart = a.blockStart + a.blockFlushDuration
 		if err = a.append(sample); err != nil {
 			defer a.mtx.RUnlock()
-			return err
+			return errors.Wrap(err, "failed to append")
 		}
 		return nil
 	}
 
 	if err = a.append(sample); err != nil {
 		defer a.mtx.RUnlock()
-		return err
+		return errors.Wrap(err, "failed to append")
 	}
 	if atomic.AddUint64(&a.currentSampleCount, 1) >= a.maxSamplesInMemory {
 		a.mtx.RUnlock()
@@ -169,7 +168,7 @@ func (a *safeAppender) append(sample *promql.Sample) error {
 		case storage.ErrDuplicateSampleForTimestamp.Error():
 			return nil
 		default:
-			return err
+			return errors.Wrap(err, "failed to append")
 		}
 	}
 	return nil
@@ -181,16 +180,16 @@ func (a *safeAppender) flush() error {
 	}
 	if atomic.LoadUint64(&a.currentSampleCount) > 0 {
 		if err := (*a.appender).Commit(); err != nil {
-			return err
+			return errors.Wrap(err, "failed to commit")
 		}
 		atomic.StoreUint64(&a.currentSampleCount, 0)
 	}
 	if _, err := a.blockWriter.Flush(a.context); err != nil {
-		return err
+		return errors.Wrap(err, "failed to flush block writer")
 	}
 	err := a.newBlockWriter(a.dir, a.blockDuration)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create new block writer")
 	}
 	appender := a.blockWriter.Appender(a.context)
 	a.appender = &appender
@@ -204,12 +203,12 @@ func (a *safeAppender) close() error {
 	a.stopped = true
 	if atomic.LoadUint64(&a.currentSampleCount) > 0 {
 		if err := (*a.appender).Commit(); err != nil {
-			return err
+			return errors.Wrap(err, "failed to commit")
 		}
 		atomic.StoreUint64(&a.currentSampleCount, 0)
 	}
 	if _, err := a.blockWriter.Flush(a.context); err != nil {
-		return err
+		return errors.Wrap(err, "failed to flush block writer")
 	}
 	a.appender = nil
 

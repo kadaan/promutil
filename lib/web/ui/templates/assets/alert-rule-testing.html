@@ -1,0 +1,143 @@
+{{define "head"}}
+
+
+<link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/css/graph.css?v={{ buildVersion }}">
+
+<link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/vendor/rickshaw/rickshaw.min.css?v={{ buildVersion }}">
+<link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/vendor/eonasdan-bootstrap-datetimepicker/bootstrap-datetimepicker.min.css?v={{ buildVersion }}">
+
+<script src="{{ pathPrefix }}/static/vendor/rickshaw/vendor/d3.v3.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/rickshaw/vendor/d3.layout.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/rickshaw/rickshaw.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/moment/moment.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/moment/moment-timezone-with-data.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/eonasdan-bootstrap-datetimepicker/bootstrap-datetimepicker.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/bootstrap3-typeahead/bootstrap3-typeahead.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/fuzzy/fuzzy.js?v={{ buildVersion }}"></script>
+
+<script src="{{ pathPrefix }}/static/vendor/mustache/mustache.min.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/js/jquery.selection.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/js/jquery.hotkeys.js?v={{ buildVersion }}"></script>
+
+<script id="graph_template" type="text/x-handlebars-template"></script>
+
+<link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/css/alertsTest.css?v={{ buildVersion }}">
+<script src="{{ pathPrefix }}/static/js/alert_testing/index.js?v={{ buildVersion }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js" type="text/javascript" charset="utf-8"></script>
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container-fluid">
+    <h1>Test Your Alerting Rules</h1>
+    <table style="height: 350px; width: 100%;">
+        <tr>
+
+            <td rowspan="2" style="height: 100%; width: 67%; padding: 0.3em;">
+                <div id="ruleTextArea" style="height: 100%;">Setting up...</div>
+            </td>
+
+<!--            &lt;!&ndash; Extracted to force grouped inputs. &ndash;&gt;-->
+<!--            <div class="prometheus_input_group pull-right">-->
+
+<!--                -->
+<!--            </div>-->
+
+            <td style="width: 33%; padding: 0.3em">
+                <div id="control_wrapper">
+                    <div class="prometheus_input_group control pull-right">
+                        <button
+                                class="btn btn-default pull-left"
+                                type="button"
+                                id="dev_end"
+                                name="dec_end"
+                                title="Rewind the end time.">
+                            <i class="glyphicon glyphicon-backward"></i>
+                        </button>
+                        <input
+                                class="pull-left date_input input"
+                                id="end"
+                                title="End time of graph (UTC)"
+                                placeholder="End Time for Eval"
+                                data-format="yyyy-MM-dd"
+                                type="text"
+                                name="end_input"
+                                size="16"
+                                value=""/>
+                        <button
+                                class="btn btn-default pull-left"
+                                type="button"
+                                id="inc_end"
+                                name="inc_end"
+                                title="Advance the end time.">
+                            <i class="glyphicon glyphicon-forward"></i>
+                        </button>
+                        <button
+                                class="btn btn-default pull-left"
+                                type="button"
+                                name="dec_range"
+                                title="Shrink the time range.">
+                            <i class="glyphicon glyphicon-minus"></i>
+                        </button>
+                        <input
+                                class="pull-left input"
+                                id="range_input"
+                                title="Time range of graph"
+                                placeholder="1d"
+                                type="text"
+                                name="range_input"
+                                size="3"
+                                value=""/>
+                        <button
+                                class="btn btn-default pull-left"
+                                type="button"
+                                name="inc_range"
+                                title="Grow the time range.">
+                            <i class="glyphicon glyphicon-plus"></i>
+                        </button>
+                        <button type="button" id="evaluate" class="btn btn-primary evaluate">
+                            Evaluate
+                        </button>
+                    </div>
+                </div>
+<!--                <button id="ruleTestExecute" class="btn btn-primary btn-block">Execute</button> <br/>-->
+            </td>
+
+        </tr>
+
+        <tr style="height: 100%">
+
+            <td style="height: 100%; width: 33%; padding: 0.3em">
+                <div id="ruleTestInfo" class="form-control" style="height: 100%; background: white;">
+                    Error messages will be displayed here
+                </div>
+            </td>
+
+        </tr>
+    </table>
+    <br/>
+    <h2>Alert Preview &amp; Graph</h2>
+
+    <div class="show-annotations is-checked" style="display: inline;">
+        <i class="glyphicon glyphicon-check"></i>
+        <button type="button" class="show-annotations" title="show annotations">Show annotations</button>
+    </div>
+
+    <div class="show-graphs is-checked" style="display: inline;">
+        <i class="glyphicon glyphicon-check"></i>
+        <button type="button" class="show-graphs" title="show graphs">Show graphs</button>
+    </div>
+
+    <div class="show-hide-all" style="display: inline;">
+        <button id="showAll" type="button" class="show-hide-all" title="open all">Open all</button>
+    </div>
+
+    <div class="show-hide-all" style="display: inline;">
+        <button id="hideAll" type="button" class="show-hide-all" title="close all">Close all</button>
+    </div>
+    <br/><br/>
+    <div id="graph_container" style="width: 100%">No Alerts to show yet</div>
+
+</div>
+{{end}}

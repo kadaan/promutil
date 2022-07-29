@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/araddon/dateparse"
 	"github.com/dustin/go-humanize"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/tj/go-naturaldate"
 	"strconv"
 	"time"
@@ -31,7 +31,7 @@ func (e *timeValue) Set(v string) error {
 	if i, err := strconv.ParseInt(v, 10, 64); err != nil {
 		if t, err := naturaldate.Parse(v, Now, naturaldate.WithDirection(naturaldate.Past)); err != nil {
 			if t, err := dateparse.ParseStrict(v); err != nil {
-				return errors.Wrap(err, fmt.Sprintf("cannot parse %q to a valid timestamp", v))
+				return errors.Wrap(err, "cannot parse %q to a valid timestamp", v)
 			} else {
 				*e = timeValue(t.UTC())
 				return nil
