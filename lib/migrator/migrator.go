@@ -32,14 +32,18 @@ type migrator struct {
 }
 
 func (t *migrator) Run(c *config.MigrateConfig) error {
+	url, err := common.JoinUrl(c.Host, "api/v1/read")
+	if err != nil {
+		return errors.Wrap(err, "failed to create remote read url")
+	}
 	clientConfig := &remote.ClientConfig{
-		URL:              &promConfig.URL{URL: c.Host},
+		URL:              &promConfig.URL{URL: url},
 		Timeout:          model.Duration(2 * time.Minute),
 		HTTPClientConfig: promConfig.HTTPClientConfig{},
 		RetryOnRateLimit: true,
 	}
 
-	plannerConfig := block.NewPlannerConfig(c.Directory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
+	plannerConfig := block.NewPlannerConfig(c.OutputDirectory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
 	generator := &planGenerator{matcherSets: c.Matchers}
 	executorCreator := &planExecutorCreator{clientConfig: clientConfig}
 	writer := block.NewPlannedBlockWriter[planData](plannerConfig, generator, executorCreator)

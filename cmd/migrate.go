@@ -15,10 +15,10 @@ func init() {
 		new(config.MigrateConfig),
 		migrator.NewMigrator()).Configure(func(fb config.FlagBuilder, cfg *config.MigrateConfig) {
 		fb.TimeRange(&cfg.Start, &cfg.End, "time to migrate")
-		fb.Directory(&cfg.Directory, "directory read and write TSDB data")
+		fb.OutputDirectory(&cfg.OutputDirectory, "directory write TSDB data")
 		fb.SampleInterval(&cfg.SampleInterval, "interval at which samples will be migrated")
 		fb.Matchers(&cfg.Matchers, "config file defining the rules to evaluate")
 		fb.Host(&cfg.Host, "remote host to migrate data from")
-		fb.Parallelism(&cfg.Parallelism, 4, "parallelism for migration").Required()
+		fb.Parallelism(&cfg.Parallelism, 4, "parallelism for migration")
 	})
 }
