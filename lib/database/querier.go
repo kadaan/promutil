@@ -2,10 +2,9 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/kadaan/promutil/config"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
@@ -142,11 +141,11 @@ func (q *querier) QueryRangeRule(ctx context.Context, recordingRule *config.Reco
 	qr, err := q.m.queryEngine.NewRangeQuery(q.m.db, nil, recordingRule.Query().String(), time.UnixMilli(start), time.UnixMilli(end), time.Duration(step)*time.Millisecond)
 
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to run rule: expression=%s, start=%v, end=%v, step=%v", recordingRule.Query().String(), start, end, step))
+		return nil, errors.Wrap(err, "failed to run rule: expression=%s, start=%v, end=%v, step=%v", recordingRule.Query().String(), start, end, step)
 	}
 	res := qr.Exec(ctx)
 	if res.Err != nil {
-		return nil, errors.Wrap(res.Err, fmt.Sprintf("rule failed: expression=%s, start=%v, end=%v, step=%v", recordingRule.Query().String(), start, end, step))
+		return nil, errors.Wrap(res.Err, "rule failed: expression=%s, start=%v, end=%v, step=%v", recordingRule.Query().String(), start, end, step)
 	}
 	switch v := res.Value.(type) {
 	case promql.Matrix:

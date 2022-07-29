@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/oklog/ulid"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/tsdb"
-	errors2 "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 	"io/fs"
+	"k8s.io/klog/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +62,7 @@ func deleteOldTempDirectories(dir string, extension string, time uint64) error {
 	prefix := filepath.Base(dir) + "-"
 	files, err := os.ReadDir(parent)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to read directory: %s", parent)
 	}
 	for _, f := range files {
 		fn := f.Name()
@@ -71,7 +71,7 @@ func deleteOldTempDirectories(dir string, extension string, time uint64) error {
 				return errU
 			} else if time > id.Time() {
 				if err = os.RemoveAll(filepath.Join(parent, fn)); err != nil {
-					return err
+					return errors.Wrap(err, "failed to remove: %s", parent)
 				}
 			}
 		}
@@ -81,21 +81,23 @@ func deleteOldTempDirectories(dir string, extension string, time uint64) error {
 
 func MoveBlocks(sourceDir string, destDir string) error {
 	if err := os.MkdirAll(destDir, 0o777); err != nil {
-		return err
+		return errors.Wrap(err, "failed to create directory: %s", destDir)
 	}
 	files, err := os.ReadDir(sourceDir)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "read directory: %s", sourceDir)
 	}
 	for _, f := range files {
 		if isBlockDir(f) {
-			errR := fileutil.Replace(filepath.Join(sourceDir, f.Name()), filepath.Join(destDir, f.Name()))
+			from := filepath.Join(sourceDir, f.Name())
+			to := filepath.Join(destDir, f.Name())
+			errR := fileutil.Replace(from, to)
 			if errR != nil {
-				return errR
+				return errors.Wrap(errR, "failed to replace %s with %s", from, to)
 			}
 		}
 	}
-	return os.RemoveAll(sourceDir)
+	return errors.Wrap(os.RemoveAll(sourceDir), "failed to remove: %s", sourceDir)
 }
 
 func isBlockDir(fi fs.DirEntry) bool {
@@ -146,7 +148,7 @@ func (d *database) AppendManager() (AppendManager, error) {
 	d.appendManagerOnce.Do(func() {
 		a, err := newAppendManager(d.context, d.mtx, d.dir, d.blockDuration, appendManagerResetFunc)
 		if err != nil {
-			d.appendManagerError = err
+			d.appendManagerError = errors.Wrap(err, "failed to create append manager")
 		}
 		d.appendManager = a
 	})
@@ -162,13 +164,13 @@ func (d *database) QueryManager() (QueryManager, error) {
 	d.queryManagerOnce.Do(func() {
 		db, err := d.openDatabase()
 		if err != nil {
-			d.queryManagerError = err
+			d.queryManagerError = errors.Wrap(err, "failed to open database")
 			d.queryManager = nil
 			return
 		}
 		manager, err := newQueryManager(d.mtx, db, queryManagerResetFunc)
 		if err != nil {
-			d.queryManagerError = err
+			d.queryManagerError = errors.Wrap(err, "failed to create query manager")
 		}
 		d.queryManager = manager
 	})
@@ -187,13 +189,12 @@ func (d *database) Close() error {
 	var err error
 	if d.appendManager != nil {
 		err = d.appendManager.Close()
-
 	}
 	if d.queryManager != nil {
 		err2 := d.queryManager.Close()
 		if err2 != nil {
 			if err != nil {
-				err = errors2.NewMulti(err, err2).Err()
+				err = errors.NewMulti([]error{err, err2}, "failed to close database")
 			}
 		}
 	}
@@ -204,20 +205,18 @@ func (d *database) Compact() error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	_, _ = fmt.Fprintf(os.Stderr, "Compacting data\n")
+	klog.V(0).Infof("Compacting data")
 
 	if d.stopped {
 		return errors.New("cannot compact a closed database")
 	}
 	db, err := d.openDatabase()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to compact database: %v\n", err)
-		return err
+		return errors.Wrap(err, "failed to open database")
 	}
 	err = db.Compact()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to compact database: %v\n", err)
-		return err
+		return errors.Wrap(err, "failed to compact database")
 	}
 	return nil
 }
@@ -238,8 +237,7 @@ func (d *database) openDatabase() (*tsdb.DB, error) {
 		registry := prometheus.NewRegistry()
 		db, err := tsdb.Open(d.dir, nil, registry, dbOptions, nil)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "failed to compact data: %v\n", err)
-			d.dbError = err
+			d.dbError = errors.Wrap(err, "failed to open database")
 		}
 		d.db = db
 		d.dbError = nil

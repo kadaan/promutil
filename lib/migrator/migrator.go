@@ -2,50 +2,45 @@ package migrator
 
 import (
 	"context"
-	"fmt"
 	"github.com/cenkalti/backoff"
 	"github.com/kadaan/promutil/config"
 	"github.com/kadaan/promutil/lib/block"
+	"github.com/kadaan/promutil/lib/command"
 	"github.com/kadaan/promutil/lib/common"
 	"github.com/kadaan/promutil/lib/database"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	promConfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/value"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/promql"
-	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/storage/remote"
-	"net/url"
 	"time"
 )
 
-func Migrate(c *config.MigrateConfig) error {
-	promUrl, err := url.Parse(fmt.Sprintf("%s://%s:%d/api/v1/read", c.Scheme, c.Host, c.Port))
-	if err != nil {
-		return errors.Wrap(err, "failed to parse promUrl")
-	}
+const (
+	maxQueryRetryAttempts = 5
+)
 
+func NewMigrator() command.Task[config.MigrateConfig] {
+	return &migrator{}
+}
+
+type migrator struct {
+}
+
+func (t *migrator) Run(c *config.MigrateConfig) error {
 	clientConfig := &remote.ClientConfig{
-		URL:              &promConfig.URL{URL: promUrl},
+		URL:              &promConfig.URL{URL: c.Host},
 		Timeout:          model.Duration(2 * time.Minute),
 		HTTPClientConfig: promConfig.HTTPClientConfig{},
 		RetryOnRateLimit: true,
 	}
 
-	var matcherSets = make(map[string][]*labels.Matcher)
-	for _, s := range c.MatcherSetExpressions {
-		matchers, err := parser.ParseMetricSelector(s)
-		if err != nil {
-			return errors.Wrap(err, "failed to parse matcher")
-		}
-		matcherSets[s] = matchers
-	}
-
-	plannerConfig := block.NewPlannerConfig(c.OutputDirectory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
-	generator := &planGenerator{matcherSets: matcherSets}
+	plannerConfig := block.NewPlannerConfig(c.Directory, c.Start, c.End, c.SampleInterval, int(c.Parallelism))
+	generator := &planGenerator{matcherSets: c.Matchers}
 	executorCreator := &planExecutorCreator{clientConfig: clientConfig}
 	writer := block.NewPlannedBlockWriter[planData](plannerConfig, generator, executorCreator)
 	return writer.Run()
@@ -106,8 +101,7 @@ func (p *planExecutor) Execute(_ context.Context, logger block.PlanLogger[planDa
 	}
 	query, err := remote.ToQuery(hints.Start, hints.End, plan.Data().matcher, hints)
 	if err != nil {
-		logger.PrintExecutePlanError(plan, "could not create query", err)
-		return err
+		return errors.Wrap(err, "failed to query remote")
 	}
 
 	var res *prompb.QueryResult
@@ -118,10 +112,9 @@ func (p *planExecutor) Execute(_ context.Context, logger block.PlanLogger[planDa
 		}
 		res = r
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 5))
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(), maxQueryRetryAttempts))
 	if err != nil {
-		logger.PrintExecutePlanError(plan, "could not read data", err)
-		return err
+		return errors.Wrap(err, "failed reading remote data after %d attempts", maxQueryRetryAttempts)
 	}
 	sample := &promql.Sample{}
 	for _, ts := range res.Timeseries {
@@ -133,7 +126,7 @@ func (p *planExecutor) Execute(_ context.Context, logger block.PlanLogger[planDa
 			sample.T = s.Timestamp
 			sample.V = s.Value
 			if err = p.appender.Add(sample); err != nil {
-				return err
+				return errors.Wrap(err, "failed to add sample: %s", sample)
 			}
 		}
 	}

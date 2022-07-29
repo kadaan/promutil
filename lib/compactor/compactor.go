@@ -3,11 +3,19 @@ package compactor
 import (
 	"context"
 	"github.com/kadaan/promutil/config"
+	"github.com/kadaan/promutil/lib/command"
 	"github.com/kadaan/promutil/lib/database"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 )
 
-func Compact(c *config.CompactConfig) error {
+func NewCompactor() command.Task[config.CompactConfig] {
+	return &compactor{}
+}
+
+type compactor struct {
+}
+
+func (t *compactor) Run(c *config.CompactConfig) error {
 	db, err := database.NewDatabase(c.Directory, database.DefaultBlockDuration, database.DefaultRetention,
 		context.Background())
 	if err != nil {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/kadaan/promutil/lib/common"
 	"github.com/kadaan/promutil/lib/database"
-	"github.com/pkg/errors"
-	"os"
+	"github.com/kadaan/promutil/lib/errors"
+	"k8s.io/klog/v2"
 	"runtime"
 	"sync"
 	"time"
@@ -238,7 +238,7 @@ func (p *planProducer[V]) Run() {
 		for _, e := range plan {
 			select {
 			case <-p.ctx.Done():
-				_, _ = fmt.Fprintf(os.Stderr, "Cancelling producer\n")
+				klog.Error("Cancelling producer")
 				return
 			case p.output <- e:
 			}
@@ -248,7 +248,7 @@ func (p *planProducer[V]) Run() {
 			return
 		}
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "Stopping producer\n")
+	klog.V(0).Infof("Stopping producer")
 }
 
 func (p *planProducer[V]) wait() bool {
@@ -259,7 +259,7 @@ func (p *planProducer[V]) wait() bool {
 	}()
 	select {
 	case <-p.ctx.Done():
-		_, _ = fmt.Fprintf(os.Stderr, "Cancelling producer\n")
+		klog.V(0).Infof("Cancelling producer")
 		return false
 	case <-c:
 		return true
@@ -337,19 +337,19 @@ func (p *planConsumer[V]) Run() {
 }
 
 type PlanLogger[V fmt.Stringer] interface {
-	PrintMessage(msg string)
+	PrintMessage(format string, args ...interface{})
 	PrintExecutePlanError(plan PlanEntry[V], msg string, err error)
 }
 
 type planLogger[V fmt.Stringer] struct {
 }
 
-func (p *planLogger[V]) PrintMessage(msg string) {
-	_, _ = fmt.Fprintf(os.Stderr, "%s\n", msg)
+func (p *planLogger[V]) PrintMessage(format string, args ...interface{}) {
+	klog.V(0).Infof(format, args...)
 }
 
 func (p *planLogger[V]) PrintExecutePlanError(plan PlanEntry[V], msg string, err error) {
-	p.PrintMessage(fmt.Sprintf("Failed to %v [%s]: %v", plan, msg, err))
+	p.PrintMessage("Failed to %v [%s]: %v", plan, msg, err)
 }
 
 type PlanExecutorCreator[V fmt.Stringer] interface {
@@ -405,7 +405,6 @@ func (p *plannedBlockWriter[V]) Run() error {
 	errChan := make(chan error)
 	inputChan := make(chan PlanEntry[V])
 
-	//generator := &planGenerator{recordingRules: b.config.recordingRules}
 	producer, err := NewPlanProducer[V](p.config, &wg, ctx, p.generator, inputChan)
 	if err != nil {
 		cancel()
@@ -439,7 +438,7 @@ func (p *plannedBlockWriter[V]) Run() error {
 	go func() {
 		select {
 		case <-s.C:
-			_, _ = fmt.Fprintf(os.Stderr, "Stopping producer, consumers, and db\n")
+			klog.V(0).Infof("Stopping producer, consumers, and db")
 			cancel()
 		}
 	}()

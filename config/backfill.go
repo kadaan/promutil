@@ -13,6 +13,6 @@ type BackfillConfig struct {
 	RuleConfig       RecordingRules
 	RuleGroupFilters []*regexp.Regexp
 	RuleNameFilters  []*regexp.Regexp
-	OutputDirectory  string
+	Directory        string
 	Parallelism      uint8
 }

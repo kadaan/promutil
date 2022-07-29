@@ -2,12 +2,11 @@ package config
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
-	errors2 "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 type RecordingRules []*RecordingRule
@@ -46,16 +45,14 @@ func (e *recordingRulesArrayValue) String() string {
 func (e *recordingRulesArrayValue) Set(v string) error {
 	rgs, errs := rulefmt.ParseFile(v)
 	if errs != nil {
-		return errors.Wrap(errors2.NewMulti(errs...).Err(),
-			fmt.Sprintf("failed to parse recording rule file '%s'", v))
+		return errors.NewMulti(errs, "failed to parse recording rule file '%s'", v)
 	}
 	for _, rg := range rgs.Groups {
 		for _, rule := range rg.Rules {
 			if rule.Record.Value != "" {
 				expr, err := parser.ParseExpr(rule.Expr.Value)
 				if err != nil {
-					return errors.Wrap(err,
-						fmt.Sprintf("failed to parse recording rule expression '%s'", rule.Expr.Value))
+					return errors.Wrap(err, "failed to parse recording rule expression '%s'", rule.Expr.Value)
 				}
 				recordingRule := &RecordingRule{
 					Rule: rules.NewRecordingRule(

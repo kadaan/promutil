@@ -2,12 +2,12 @@ package generator
 
 import (
 	"context"
-	"fmt"
 	"github.com/PaesslerAG/gval"
 	"github.com/kadaan/promutil/config"
 	"github.com/kadaan/promutil/lib/block"
+	"github.com/kadaan/promutil/lib/command"
 	"github.com/kadaan/promutil/lib/database"
-	"github.com/pkg/errors"
+	"github.com/kadaan/promutil/lib/errors"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
 	"math"
@@ -100,7 +100,14 @@ type state struct {
 	Last      float64
 }
 
-func Generate(c *config.GenerateConfig) error {
+func NewGenerator() command.Task[config.GenerateConfig] {
+	return &generator{}
+}
+
+type generator struct {
+}
+
+func (t *generator) Run(c *config.GenerateConfig) error {
 	metrics, err := createMetricSpecifications(c)
 	if err != nil {
 		return errors.Wrap(err, "failed to create metric specifications")
@@ -167,7 +174,7 @@ func createMetricSpecifications(c *config.GenerateConfig) ([]*metric, error) {
 
 func getExpressionEngine(expression string) (gval.Evaluable, error) {
 	evaluable, err := expressionLanguage.NewEvaluable(expression)
-	return evaluable, errors.Wrap(err, fmt.Sprintf("failed to parse expression: '%s'", expression))
+	return evaluable, errors.Wrap(err, "failed to parse expression: '%s'", expression)
 }
 
 type planData struct {
@@ -215,7 +222,7 @@ func (p *planExecutor) Execute(_ context.Context, _ block.PlanLogger[planData], 
 			s.Timestamp = float64(plan.Start())
 			value, errE := m.Expression.EvalFloat64(context.Background(), s)
 			if errE != nil {
-				return errors.Wrap(errE, fmt.Sprintf("failed to evaluate expression %s", m.ExpressionText))
+				return errors.Wrap(errE, "failed to evaluate expression %s", m.ExpressionText)
 			}
 
 			s.Last = value
@@ -228,7 +235,7 @@ func (p *planExecutor) Execute(_ context.Context, _ block.PlanLogger[planData], 
 			sample.V = value
 			sample.Metric = instance
 			if err := p.appender.Add(sample); err != nil {
-				return err
+				return errors.Wrap(err, "failed to add sample: %s", sample)
 			}
 		}
 	}
