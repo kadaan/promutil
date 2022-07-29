@@ -9,8 +9,11 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/promql"
 	"math"
+	"net/url"
+	"path"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -91,4 +94,10 @@ func ParseDuration(s string) (time.Duration, error) {
 
 func TimeMilliseconds(t model.Time) int64 {
 	return t.UnixNano() / int64(time.Millisecond/time.Nanosecond)
+}
+
+func JoinUrl(base *url.URL, paths ...string) (*url.URL, error) {
+	s := base.String()
+	p := path.Join(paths...)
+	return url.Parse(fmt.Sprintf("%s/%s", strings.TrimRight(s, "/"), strings.TrimLeft(p, "/")))
 }

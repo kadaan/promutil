@@ -8,11 +8,11 @@ import (
 
 // MigrateConfig represents the configuration of the migrate command.
 type MigrateConfig struct {
-	Host           *url.URL
-	Start          time.Time
-	End            time.Time
-	SampleInterval time.Duration
-	Matchers       map[string][]*labels.Matcher
-	Directory      string
-	Parallelism    uint8
+	Host            *url.URL
+	Start           time.Time
+	End             time.Time
+	SampleInterval  time.Duration
+	Matchers        map[string][]*labels.Matcher
+	OutputDirectory string
+	Parallelism     uint8
 }

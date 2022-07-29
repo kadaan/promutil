@@ -30,7 +30,7 @@ func (e *urlValue) Set(v string) error {
 		return errors.Wrap(err, "failed to parse url")
 	}
 	if strings.ToUpper(u.Scheme) != "HTTP" && strings.ToUpper(u.Scheme) != "HTTPS" {
-		return errors.Wrap(err, "url must be have scheme set to HTTP or HTTPS")
+		return errors.New("url must be have scheme set to HTTP or HTTPS")
 	}
 	*e.value = u
 	return nil

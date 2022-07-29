@@ -28,6 +28,9 @@ func Errorf(format string, a ...any) tracerr.Error {
 }
 
 func Wrap(err error, message string, a ...any) tracerr.Error {
+	if err == nil {
+		return nil
+	}
 	return customTracerr.Wrap(fmt.Errorf("%s: %w", fmt.Sprintf(message, a...), err))
 }
 

@@ -18,8 +18,8 @@ $ ./build.sh
 ## Usage
 
 ```console
-promutil provides a set of utilities for working with a Prometheus
-TSDB.  It allows data generation, recording rule backfilling, data
+promutil provides a set of utilities for working with a Prometheus 
+TSDB.  It allows data generation, recording rule backfilling, data 
 migration, etc.
 
 Usage:
@@ -33,12 +33,15 @@ Available Commands:
   help        Help about any command
   migrate     Migrate prometheus data
   version     Prints the promutil version
+  web         Runs an API/UI server
 
 Flags:
+      --config string   config file (default is .promutil.config)
   -h, --help            help for promutil
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
 
 Use "promutil [command] --help" for more information about a command.
+
 ```
 
 ### Version
@@ -55,13 +58,14 @@ Flags:
   -h, --help   help for version
 
 Global Flags:
+      --config string   config file (default is .promutil.config)
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
 ```
 
 ##### Example
 ```console
 $ ./promutil version
-promutil, version v0.0.1-dirty (branch: develop, revision: f49594341b3045ff6d0da7605dab023a1784f201)
+promutil, version v0.0.3-dirty (branch: develop, revision: f49594341b3045ff6d0da7605dab023a1784f201)
   build user:       user@computer.local
   build date:       2022-07-15T05:50:04Z
   go version:       go1.18.3
@@ -78,17 +82,18 @@ Usage:
   promutil backfill [flags]
 
 Flags:
-      --directory string                  directory read and write tsdb data (default "data/")
-      --end timestamp                     time to backfill up through from (default "now")
+      --directory string                  directory read and write TSDB data (default "data/")
+      --end timestamp                     time to backfill to (default "now")
   -h, --help                              help for backfill
-      --parallelism uint8                 parallelism for migration (default 16)
+      --parallelism uint8                 parallelism for backfill (default 16)
       --rule-config-file recordingRules   config file defining the rules to evaluate (default None)
       --rule-group-filter regex           rule group filters which determine the rules groups to backfill (default .+)
       --rule-name-filter regex            rule name filters which determine the rules groups to backfill (default .+)
-      --sample-interval duration          interval at which samples will be backfill (default 15s)
-      --start timestamp                   time to start backfill from (default "6 hours ago")
+      --sample-interval duration          interval at which samples will be backfilled (default 15s)
+      --start timestamp                   time to backfill from (default "6 hours ago")
 
 Global Flags:
+      --config string   config file (default is .promutil.config)
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
 ```
 
@@ -106,7 +111,12 @@ groups:
 ```
 
 ```console
-$ ./promutil backfill --directory docker/prometheus/data --start 2022-06-18 --end 2022-06-28 --rule-config-file recording_rules.yml --rule-name-filter "job:my_service:count"
+$ ./promutil backfill \
+      --directory docker/prometheus/data \
+      --start 2022-06-18 \
+      --end 2022-06-28 \
+      --rule-config-file recording_rules.yml \
+      --rule-name-filter "job:my_service:count"
 Running backfill for 'job:my_service:count' from 2022-06-17T17:00:00 to 2022-06-17T17:29:59
 ...
 ```
@@ -115,16 +125,18 @@ Running backfill for 'job:my_service:count' from 2022-06-17T17:00:00 to 2022-06-
 
 ##### Help
 ```console
+$ ./promutil help compact
 Compact the specified local prometheus TSDB.
 
 Usage:
   promutil compact [flags]
 
 Flags:
-      --directory string   tsdb data directory to compact (default "data/")
+      --directory string   directory read and write TSDB data (default "data/")
   -h, --help               help for compact
 
 Global Flags:
+      --config string   config file (default is .promutil.config)
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
 ```
 
@@ -138,16 +150,24 @@ Compacting data
 
 ##### Help
 ```console
-Compact the specified local prometheus TSDB.
+$ ./promutil help generate
+Generate prometheus data based on the provided data definitions to a local prometheus TSDB.
 
 Usage:
-  promutil compact [flags]
+  promutil generate [flags]
 
 Flags:
-      --directory string   tsdb data directory to compact (default "data/")
-  -h, --help               help for compact
+      --end timestamp                     time to generate data to (default "now")
+  -h, --help                              help for generate
+      --metric-config-file metricConfig   config file defining the time series to create (default Empty)
+      --output-directory string           output directory to write TSDB data (default "data/")
+      --parallelism uint8                 parallelism for generation (default 16)
+      --rule-config-file recordingRules   config file defining the rules to evaluate (default None)
+      --sample-interval duration          interval at which samples will be generated (default 15s)
+      --start timestamp                   time to generate data from (default "6 hours ago")
 
 Global Flags:
+      --config string   config file (default is .promutil.config)
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
 ```
 
@@ -181,36 +201,40 @@ Running generate for 'my_other_metric' from 2022-06-17T17:00:00 to 2022-06-17T17
 
 ##### Help
 ```console
+$ ./promutil help migrate
 Migrate the specified data from a remote prometheus to a local prometheus TSDB.
 
 Usage:
   promutil migrate [flags]
 
 Flags:
-      --end timestamp              time to migrate up through from (default "now")
+      --end timestamp              time to migrate to (default "now")
   -h, --help                       help for migrate
-      --host string                host server to migrate data from (default "localhost")
-      --matcher stringArray        set of matchers used to identify the data to migrated
-      --output-directory string    output directory to write tsdb data (default "data/")
+      --host url                   remote host to migrate data from (default "http://localhost:9090")
+      --matcher matchers           config file defining the rules to evaluate (default None)
+      --output-directory string    directory write TSDB data (default "data/")
       --parallelism uint8          parallelism for migration (default 4)
-      --port uint16                host server to migrate data from (default 9089)
       --sample-interval duration   interval at which samples will be migrated (default 15s)
-      --scheme scheme              scheme of the host server to export data from. allowed: "http", "https" (default http)
-      --start timestamp            time to start migrating from (default "6 hours ago")
+      --start timestamp            time to migrate from (default "6 hours ago")
 
 Global Flags:
+      --config string   config file (default is .promutil.config)
   -v, --verbose count   enables verbose logging (multiple times increases verbosity)
+
 ```
 
 ##### Example
 ```console
-$ ./promutil migrate --start 2022-06-18 --end 2022-06-28 --output-directory docker/prometheus/data --matcher 'my_metric{service="my_service"} --matcher 'my_other_metric{service="my_service"}'
+$ ./promutil migrate --host http://prometheus:9090 --start 2022-06-18 --end 2022-06-28 --output-directory docker/prometheus/data --matcher 'my_metric{service="my_service"} --matcher 'my_other_metric{service="my_service"}'
 Running migrate for 'my_metric{service="my_service"}' from 2022-06-17T17:00:00 to 2022-06-17T17:29:59
-Running generate for 'my_other_metric{service="my_service"}' from 2022-06-17T17:00:00 to 2022-06-17T17:29:59
+Running migrate for 'my_other_metric{service="my_service"}' from 2022-06-17T17:00:00 to 2022-06-17T17:29:59
 ...
 ```
 
 ## Changelog
+
+### 0.0.3
+* Added migrate, backfill, generate, compact, and web commands
 
 ### 0.0.1
 * Initial version
