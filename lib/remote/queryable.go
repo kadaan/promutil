@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/rules"
-	"math"
 	"net/url"
 	"sort"
 	"time"
@@ -50,7 +49,6 @@ type queryCacheEntry struct {
 	query        string
 	matrix       *promql.Matrix
 	interval     time.Duration
-	stats        []seriesStats
 	cached       bool
 }
 
@@ -160,11 +158,6 @@ func (q *queryFuncProvider) RangeQueryFunc() RangeQueryFunc {
 	}
 }
 
-type seriesStats struct {
-	MinTimestamp int64
-	MaxTimestamp int64
-}
-
 func (q *queryFuncProvider) query(ctx context.Context, query string, start time.Time, end time.Time, interval time.Duration, addToCache bool, allowArbitraryQueries bool) (*queryCacheEntry, error) {
 	if queryCache, ok := q.queryResultCache[query]; ok {
 		if intervalCache, ok2 := queryCache[interval]; ok2 {
@@ -213,26 +206,14 @@ func (q *queryFuncProvider) query(ctx context.Context, query string, start time.
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query '%s' from %d to %d after %d attempts", query, rng.Start, rng.End, attempts)
 	}
-	var stats []seriesStats
 	var matrix promql.Matrix
 	switch v := (*value).(type) {
 	case model.Matrix:
 		for _, ss := range v {
-			stat := seriesStats{
-				MinTimestamp: math.MaxInt64,
-				MaxTimestamp: math.MinInt64,
-			}
 			var points []promql.Point
 			for _, s := range ss.Values {
-				ts := common.TimeMilliseconds(s.Timestamp)
-				if ts < stat.MinTimestamp {
-					stat.MinTimestamp = ts
-				}
-				if ts > stat.MaxTimestamp {
-					stat.MaxTimestamp = ts
-				}
 				points = append(points, promql.Point{
-					T: ts,
+					T: common.TimeMilliseconds(s.Timestamp),
 					V: float64(s.Value),
 				})
 			}
@@ -256,7 +237,6 @@ func (q *queryFuncProvider) query(ctx context.Context, query string, start time.
 				Metric: metric,
 				Points: points,
 			})
-			stats = append(stats, stat)
 		}
 	default:
 		return nil, errors.New("query range result is not a matrix")
@@ -268,7 +248,6 @@ func (q *queryFuncProvider) query(ctx context.Context, query string, start time.
 		interval:     interval,
 		query:        query,
 		matrix:       &matrix,
-		stats:        stats,
 		cached:       false,
 	}
 

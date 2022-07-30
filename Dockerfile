@@ -30,7 +30,7 @@ RUN GOOS=darwin GARCH=amd64 go build \
             -o /dist/promutil \
             -a \
             -ldflags "-s -w -extldflags \"-fno-PIC -static\" -X github.com/kadaan/promutil/version.Version=$VERSION -X github.com/kadaan/promutil/version.Revision=$REVISION -X github.com/kadaan/promutil/version.Branch=$BRANCH -X github.com/kadaan/promutil/version.BuildUser=$USER -X github.com/kadaan/promutil/version.BuildHost=$HOST -X github.com/kadaan/promutil/version.BuildDate=$BUILD_DATE" \
-            -tags 'osusergo netgo' \
+            -tags 'osusergo netgo jsoniter' \
             -installsuffix netgo && \
     tar -czf "/archives/promutil_darwin.tar.gz" -C "/dist" .
 
@@ -39,7 +39,7 @@ RUN GOOS=linux GARCH=amd64 go build \
             -o /dist/promutil \
             -a \
             -ldflags "-s -w -X github.com/kadaan/promutil/version.Version=$VERSION -X github.com/kadaan/promutil/version.Revision=$REVISION -X github.com/kadaan/promutil/version.Branch=$BRANCH -X github.com/kadaan/promutil/version.BuildUser=$USER -X github.com/kadaan/promutil/version.BuildHost=$HOST -X github.com/kadaan/promutil/version.BuildDate=$BUILD_DATE" \
-            -tags 'osusergo netgo static_build' \
+            -tags 'osusergo netgo jsoniter static_build' \
             -installsuffix netgo && \
     tar -czf "/archives/promutil_linux.tar.gz" -C "/dist" .
 

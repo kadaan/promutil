@@ -7,6 +7,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
 	kitLog "github.com/go-kit/kit/log"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/kadaan/promutil/config"
 	"github.com/kadaan/promutil/lib/common"
 	"github.com/kadaan/promutil/lib/errors"
@@ -18,11 +19,15 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/util/stats"
+	"math"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	textTemplate "text/template"
 	"time"
+	"unsafe"
 )
 
 const (
@@ -49,33 +54,95 @@ annotations:
 
 type timestamp int64
 
-func (t timestamp) MarshalJSON() ([]byte, error) {
-	buffer := bytes.Buffer{}
-	ts := int64(t)
-	if ts < 0 {
-		buffer.WriteString("-")
-		ts = -ts
+func init() {
+	jsoniter.RegisterTypeEncoderFunc("float64", marshalValueJSON, marshalValueJSONIsEmpty)
+	jsoniter.RegisterTypeEncoderFunc("time.Time", marshalTimeJSON, marshalTimeJSONIsEmpty)
+	jsoniter.RegisterTypeEncoderFunc("promql.Point", marshalPointJSON, marshalPointJSONIsEmpty)
+}
+
+func marshalPointJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	p := *((*promql.Point)(ptr))
+	stream.WriteArrayStart()
+	marshalTimestamp(p.T, stream)
+	stream.WriteMore()
+	marshalValue(p.V, stream)
+	stream.WriteArrayEnd()
+}
+
+func marshalPointJSONIsEmpty(_ unsafe.Pointer) bool {
+	return false
+}
+
+func marshalTimeJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	p := *((*time.Time)(ptr))
+	if p.IsZero() {
+		stream.WriteNil()
+	} else {
+		marshalTimestamp(p.UnixMilli(), stream)
 	}
-	buffer.WriteString(fmt.Sprintf("%d", ts/1000))
-	fraction := ts % 1000
+}
+
+func marshalTimeJSONIsEmpty(_ unsafe.Pointer) bool {
+	return false
+}
+
+func marshalTimestamp(t int64, stream *jsoniter.Stream) {
+	// Write out the timestamp as a float divided by 1000.
+	// This is ~3x faster than converting to a float.
+	if t < 0 {
+		stream.WriteRaw(`-`)
+		t = -t
+	}
+	stream.WriteInt64(t / 1000)
+	fraction := t % 1000
 	if fraction != 0 {
-		buffer.WriteString(".")
+		stream.WriteRaw(`.`)
 		if fraction < 100 {
-			buffer.WriteString("0")
+			stream.WriteRaw(`0`)
 		}
 		if fraction < 10 {
-			buffer.WriteString("0")
+			stream.WriteRaw(`0`)
 		}
-		buffer.WriteString(fmt.Sprintf("%d", fraction))
+		stream.WriteInt64(fraction)
 	}
-	return buffer.Bytes(), nil
+}
+
+func marshalValueJSON(ptr unsafe.Pointer, stream *jsoniter.Stream) {
+	p := *((*float64)(ptr))
+	marshalValue(p, stream)
+}
+
+func marshalValueJSONIsEmpty(_ unsafe.Pointer) bool {
+	return false
+}
+
+func marshalValue(v float64, stream *jsoniter.Stream) {
+	if math.IsNaN(v) {
+		stream.WriteString("NaN")
+	} else {
+		stream.WriteRaw(`"`)
+		// Taken from https://github.com/json-iterator/go/blob/master/stream_float.go#L71 as a workaround
+		// to https://github.com/json-iterator/go/issues/365 (jsoniter, to follow json standard, doesn't allow inf/nan).
+		buf := stream.Buffer()
+		abs := math.Abs(v)
+		fmt := byte('f')
+		// Note: Must use float32 comparisons for underlying float32 value to get precise cutoffs right.
+		if abs != 0 {
+			if abs < 1e-6 || abs >= 1e21 {
+				fmt = 'e'
+			}
+		}
+		buf = strconv.AppendFloat(buf, v, fmt, -1, 64)
+		stream.SetBuffer(buf)
+		stream.WriteRaw(`"`)
+	}
 }
 
 type alertsTestResult struct {
 	IsError              bool                        `json:"isError"`
 	Errors               []string                    `json:"errors"`
-	Start                timestamp                   `json:"start"`
-	End                  timestamp                   `json:"end"`
+	Start                time.Time                   `json:"start"`
+	End                  time.Time                   `json:"end"`
 	Step                 int64                       `json:"step"`
 	AlertStateToRowClass map[rules.AlertState]string `json:"alertStateToRowClass"`
 	AlertStateToName     map[rules.AlertState]string `json:"alertStateToName"`
@@ -180,8 +247,8 @@ func (t *alertTester) alertsTesting(requestContext *gin.Context) {
 	if cfg, err := t.parseAlertsTestingBody(requestContext.Request); err != nil {
 		result.addErrors(err)
 	} else {
-		result.Start = timestamp(cfg.Start.UnixMilli())
-		result.End = timestamp(cfg.End.UnixMilli())
+		result.Start = time.UnixMilli(cfg.Start.UnixMilli())
+		result.End = time.UnixMilli(cfg.End.UnixMilli())
 		result.Step = cfg.Step.Milliseconds()
 		for _, group := range cfg.RuleGroups.Groups {
 			for _, rule := range group.Rules {
@@ -284,8 +351,8 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 		rule.Alert.Value,
 		expr,
 		time.Duration(rule.For),
-		labels.FromMap(rule.Labels),
-		labels.FromMap(rule.Annotations),
+		labels.Labels{},
+		labels.Labels{},
 		labels.Labels{},
 		"",
 		true,
@@ -311,7 +378,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 
 	queryMatrix = common.DownsampleMatrix(queryMatrix, maxSamples, true)
 
-	activeAlertsByLabels := make(map[uint64][]*rules.Alert)
+	importantAlertTimestampSet := make(map[time.Time]interface{})
 
 	queryFunc := provider.InstantQueryFunc(false)
 	seriesHashMap := make(map[uint64]*promql.Series)
@@ -339,6 +406,72 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 				seriesHashMap[smpl.Metric.Hash()] = series
 			}
 			series.Points = append(series.Points, smpl.Point)
+		}
+		alertingRule.ForEachActiveAlert(func(activeAlert *rules.Alert) {
+			if !activeAlert.ActiveAt.IsZero() {
+				importantAlertTimestampSet[activeAlert.ActiveAt] = nil
+			}
+			if !activeAlert.FiredAt.IsZero() {
+				importantAlertTimestampSet[activeAlert.FiredAt] = nil
+			}
+			if !activeAlert.ResolvedAt.IsZero() {
+				importantAlertTimestampSet[activeAlert.ResolvedAt] = nil
+			}
+		})
+	}
+
+	var matrix promql.Matrix
+	for _, series := range seriesHashMap {
+		if series.Metric.Get(labels.MetricName) == alertForStateMetricName {
+			continue
+		}
+		p := 0
+		for p < len(matrix) {
+			if matrix[p].Metric.Hash() >= series.Metric.Hash() {
+				break
+			}
+			p++
+		}
+		matrix = append(matrix[:p], append(promql.Matrix{*series}, matrix[p:]...)...)
+	}
+
+	matrix = common.DownsampleMatrix(matrix, maxSamples, false)
+
+	htmlSnippet, err := t.htmlSnippetWithoutLinks(alertingRule)
+	if err != nil {
+		return "", nil, nil, nil, err
+	}
+
+	var importantAlertTimestamps []time.Time
+	for ts := range importantAlertTimestampSet {
+		importantAlertTimestamps = append(importantAlertTimestamps, ts)
+	}
+	sort.Slice(importantAlertTimestamps, func(i, j int) bool {
+		return importantAlertTimestamps[i].Before(importantAlertTimestamps[j])
+	})
+
+	activeAlertsByLabels := make(map[uint64][]*rules.Alert)
+	alertQueryFunc := provider.InstantQueryFunc(true)
+	alertingRule = rules.NewAlertingRule(
+		rule.Alert.Value,
+		expr,
+		time.Duration(rule.For),
+		labels.FromMap(rule.Labels),
+		labels.FromMap(rule.Annotations),
+		labels.Labels{},
+		"",
+		true,
+		kitLog.NewNopLogger(),
+	)
+	for _, ts := range importantAlertTimestamps {
+		_, errA := alertingRule.Eval(
+			ctx,
+			ts,
+			alertQueryFunc,
+			nil,
+			group.Limit)
+		if errA != nil {
+			return "", nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
 		}
 		alertingRule.ForEachActiveAlert(func(activeAlert *rules.Alert) {
 			aaHash := t.activeAlertHash(activeAlert)
@@ -377,63 +510,9 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 		})
 	}
 
-	var matrix promql.Matrix
-	for _, series := range seriesHashMap {
-		if series.Metric.Get(labels.MetricName) == alertForStateMetricName {
-			continue
-		}
-		p := 0
-		for p < len(matrix) {
-			if matrix[p].Metric.Hash() >= series.Metric.Hash() {
-				break
-			}
-			p++
-		}
-		matrix = append(matrix[:p], append(promql.Matrix{*series}, matrix[p:]...)...)
-	}
-
-	matrix = common.DownsampleMatrix(matrix, maxSamples, false)
-
-	htmlSnippet, err := t.htmlSnippetWithoutLinks(alertingRule)
-	if err != nil {
-		return "", nil, nil, nil, err
-	}
-
 	var activeAlertList []rules.Alert
-	alertQueryFunc := provider.InstantQueryFunc(true)
 	for _, activeAlertsByLabel := range activeAlertsByLabels {
 		for _, activeAlert := range activeAlertsByLabel {
-			var ts time.Time
-			if activeAlert.State == rules.StatePending {
-				ts = activeAlert.ActiveAt
-			} else {
-				ts = activeAlert.FiredAt
-			}
-			alertingRule = rules.NewAlertingRule(
-				rule.Alert.Value,
-				expr,
-				time.Duration(rule.For),
-				labels.FromMap(rule.Labels),
-				labels.FromMap(rule.Annotations),
-				labels.Labels{},
-				"",
-				true,
-				kitLog.NewNopLogger(),
-			)
-			_, errA := alertingRule.Eval(
-				ctx,
-				ts,
-				alertQueryFunc,
-				nil,
-				group.Limit)
-			if errA != nil {
-				return "", nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
-			}
-			alertingRule.ForEachActiveAlert(func(alert *rules.Alert) {
-				if alert.ActiveAt == ts && activeAlert.Labels.Hash() == alert.Labels.Hash() {
-					(*activeAlert).Annotations = (*alert).Annotations
-				}
-			})
 			activeAlertList = append(activeAlertList, *activeAlert)
 		}
 	}
