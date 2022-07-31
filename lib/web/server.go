@@ -65,16 +65,18 @@ type server struct {
 	config     config.WebConfig
 	httpServer http.Server
 	routes     []Route
+	queryable  remote.Queryable
 }
 
 func (s *server) createServer() error {
-	queryable, err := remote.NewQueryable(s.config.Host)
+	queryable, err := remote.NewQueryable(s.config.Host, s.config.Parallelism)
 	if err != nil {
 		return err
 	}
 	options := s.newOptions()
 	tmplExecutor := NewTemplateExecutor(options)
 	router := s.createRouter(tmplExecutor, queryable)
+	s.queryable = queryable
 	s.httpServer = http.Server{
 		Addr:    s.config.ListenAddress.String(),
 		Handler: router,
@@ -108,6 +110,7 @@ func (s *server) Stop() {
 			cancel()
 			s.state = stopped
 		}()
+		s.queryable.Close()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			log.Panicf("Server shutdown failed:%s", err)
 		}

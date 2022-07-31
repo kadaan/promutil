@@ -36,6 +36,7 @@ var (
 	defaultRuleGroupFilters = []*regexp.Regexp{regexp.MustCompile(".+")}
 	defaultRuleNameFilters  = []*regexp.Regexp{regexp.MustCompile(".+")}
 	yamlFileExtensions      = []string{"yml", "yaml"}
+	defaultListenAddress    = ListenAddress{Host: "", Port: 8080}
 )
 
 func NewFlagBuilder(cmd *cobra.Command) FlagBuilder {
@@ -241,6 +242,6 @@ func (fb *flagBuilder) Matchers(dest *map[string][]*labels.Matcher, usage string
 
 func (fb *flagBuilder) ListenAddress(dest *ListenAddress, usage string) Flag {
 	return fb.newFlag(listenAddressKey, func(flagSet *pflag.FlagSet) {
-		flagSet.Var(NewListenAddressValue(dest, ListenAddress{Host: "", Port: 8080}), listenAddressKey, usage)
+		flagSet.Var(NewListenAddressValue(dest, defaultListenAddress), listenAddressKey, usage)
 	})
 }

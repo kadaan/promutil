@@ -100,10 +100,65 @@ div.show-hide-all button {
     border-style: none !important;
 }
 
-.alert_when_list_key {
+.alert_when_list_key, .alert_value_key {
     font-weight: bold;
 }
 
-.alert_when_list_key, .alert_when_list_value {
+.alert_when_list_key, .alert_when_list_value, .alert_value_key, .alert_value_value {
     font-size: 75%;
+}
+
+.rickshaw_annotation_timeline .annotation.active .content {
+    width: min-content;
+    border-width: 1px !important;
+    border: #000;
+    border-style: solid;
+}
+
+.alert_popup {
+    display: flex;
+    flex-direction: column;
+    min-width: 250px;
+}
+
+.alert_popup_header {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.alert_popup_name, .alert_popup_status {
+    flex: 0 1 auto;
+    margin-right: 10px;
+}
+
+.alert_popup_value {
+    flex: 1 1 auto;
+}
+
+.alert_popup_body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.alert_popup_label {
+    margin: 2px;
+}
+
+.rickshaw_annotation_timeline .annotation:hover .content {
+    display: block;
+    z-index: 50;
+    width: min-content;
+    border-width: 1px !important;
+    border: #000;
+    border-style: solid;
+}
+
+.rickshaw_annotation_timeline .annotation.active, .rickshaw_annotation_timeline .annotation:hover {
+    cursor: pointer;
 }

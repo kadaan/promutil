@@ -3,22 +3,35 @@ package common
 import "sync"
 
 type Canceller interface {
+	C() chan struct{}
+	Cancelled() bool
 	Cancel()
 }
 
 type canceller struct {
-	C    chan struct{}
-	once sync.Once
+	cancelled bool
+	c         chan struct{}
+	once      sync.Once
 }
 
 func NewCanceller() *canceller {
 	return &canceller{
-		C: make(chan struct{}),
+		cancelled: false,
+		c:         make(chan struct{}),
 	}
+}
+
+func (s *canceller) C() chan struct{} {
+	return s.c
+}
+
+func (s *canceller) Cancelled() bool {
+	return s.cancelled
 }
 
 func (s *canceller) Cancel() {
 	s.once.Do(func() {
-		close(s.C)
+		s.cancelled = true
+		close(s.c)
 	})
 }

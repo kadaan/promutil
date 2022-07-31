@@ -13,10 +13,7 @@
             {{#activeAlerts}}
             <tbody class="active_alert">
               <tr class="active_alert_header">
-                <th>Labels</th>
-                <th>State</th>
-                <th>When</th>
-                <th>Value</th>
+                <th id="{{id}}" colspan="4">{{name}}</th>
               </tr>
               <tr>
                 <td>
@@ -43,7 +40,10 @@
                   </div>
                   {{/ResolvedAt}}
                 </td>
-                <td>{{Value}}</td>
+                <td>
+                  <span class="alert_value_key">Value: </span>
+                  <span class="alert_value_value">{{Value}}</span>
+                </td>
               </tr>
               <tr class="alert_annotations">
                 <td colspan="2">
@@ -84,6 +84,7 @@
                               </div>
                             </div>
                             <div class="graph_area"></div>
+                            <div class="timeline"></div>
                             <div class="legend"></div>
                         </div>
                       </div>
@@ -101,6 +102,7 @@
                       <div class="row">
                         <div class="col-lg-12">
                           <div class="graph_area"></div>
+                          <div class="timeline"></div>
                           <div class="legend"></div>
                         </div>
                       </div>

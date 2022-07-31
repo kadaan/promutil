@@ -52,8 +52,6 @@ annotations:
 {{- end }}`
 )
 
-type timestamp int64
-
 func init() {
 	jsoniter.RegisterTypeEncoderFunc("float64", marshalValueJSON, marshalValueJSONIsEmpty)
 	jsoniter.RegisterTypeEncoderFunc("time.Time", marshalTimeJSON, marshalTimeJSONIsEmpty)
@@ -125,14 +123,14 @@ func marshalValue(v float64, stream *jsoniter.Stream) {
 		// to https://github.com/json-iterator/go/issues/365 (jsoniter, to follow json standard, doesn't allow inf/nan).
 		buf := stream.Buffer()
 		abs := math.Abs(v)
-		fmt := byte('f')
+		valueFmt := byte('f')
 		// Note: Must use float32 comparisons for underlying float32 value to get precise cutoffs right.
 		if abs != 0 {
 			if abs < 1e-6 || abs >= 1e21 {
-				fmt = 'e'
+				valueFmt = 'e'
 			}
 		}
-		buf = strconv.AppendFloat(buf, v, fmt, -1, 64)
+		buf = strconv.AppendFloat(buf, v, valueFmt, -1, 64)
 		stream.SetBuffer(buf)
 		stream.WriteRaw(`"`)
 	}
@@ -516,6 +514,9 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 			activeAlertList = append(activeAlertList, *activeAlert)
 		}
 	}
+	sort.Slice(activeAlertList, func(i, j int) bool {
+		return activeAlertList[i].ActiveAt.Before(activeAlertList[j].ActiveAt)
+	})
 
 	return htmlSnippet,
 		&activeAlertList,

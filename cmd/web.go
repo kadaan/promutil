@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/kadaan/promutil/config"
+	"github.com/kadaan/promutil/lib/block"
 	"github.com/kadaan/promutil/lib/command"
 	"github.com/kadaan/promutil/lib/web"
 )
@@ -17,5 +18,6 @@ func init() {
 		fb.ListenAddress(&cfg.ListenAddress, "the listen address")
 		fb.SampleInterval(&cfg.SampleInterval, "interval at which samples will be taken within a range")
 		fb.Host(&cfg.Host, "remote prometheus host")
+		fb.Parallelism(&cfg.Parallelism, block.MaxParallelism, "parallelism for backfill")
 	})
 }

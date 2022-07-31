@@ -7,7 +7,6 @@
 <link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/vendor/eonasdan-bootstrap-datetimepicker/bootstrap-datetimepicker.min.css?v={{ buildVersion }}">
 
 <script src="{{ pathPrefix }}/static/vendor/rickshaw/vendor/d3.v3.js?v={{ buildVersion }}"></script>
-<script src="{{ pathPrefix }}/static/vendor/rickshaw/vendor/d3.layout.min.js?v={{ buildVersion }}"></script>
 <script src="{{ pathPrefix }}/static/vendor/rickshaw/rickshaw.min.js?v={{ buildVersion }}"></script>
 <script src="{{ pathPrefix }}/static/vendor/moment/moment.min.js?v={{ buildVersion }}"></script>
 <script src="{{ pathPrefix }}/static/vendor/moment/moment-timezone-with-data.min.js?v={{ buildVersion }}"></script>
@@ -33,17 +32,9 @@
     <h1>Test Your Alerting Rules</h1>
     <table style="height: 350px; width: 100%;">
         <tr>
-
             <td rowspan="2" style="height: 100%; width: 67%; padding: 0.3em;">
                 <div id="ruleTextArea" style="height: 100%;">Setting up...</div>
             </td>
-
-<!--            &lt;!&ndash; Extracted to force grouped inputs. &ndash;&gt;-->
-<!--            <div class="prometheus_input_group pull-right">-->
-
-<!--                -->
-<!--            </div>-->
-
             <td style="width: 33%; padding: 0.3em">
                 <div id="control_wrapper">
                     <div class="prometheus_input_group control pull-right">
@@ -101,43 +92,34 @@
                         </button>
                     </div>
                 </div>
-<!--                <button id="ruleTestExecute" class="btn btn-primary btn-block">Execute</button> <br/>-->
             </td>
-
         </tr>
-
         <tr style="height: 100%">
-
             <td style="height: 100%; width: 33%; padding: 0.3em">
                 <div id="ruleTestInfo" class="form-control" style="height: 100%; background: white;">
                     Error messages will be displayed here
                 </div>
             </td>
-
         </tr>
     </table>
     <br/>
     <h2>Alert Preview &amp; Graph</h2>
-
     <div class="show-annotations is-checked" style="display: inline;">
         <i class="glyphicon glyphicon-check"></i>
         <button type="button" class="show-annotations" title="show annotations">Show annotations</button>
     </div>
-
     <div class="show-graphs is-checked" style="display: inline;">
         <i class="glyphicon glyphicon-check"></i>
         <button type="button" class="show-graphs" title="show graphs">Show graphs</button>
     </div>
-
     <div class="show-hide-all" style="display: inline;">
         <button id="showAll" type="button" class="show-hide-all" title="open all">Open all</button>
     </div>
-
     <div class="show-hide-all" style="display: inline;">
         <button id="hideAll" type="button" class="show-hide-all" title="close all">Close all</button>
     </div>
-    <br/><br/>
+    <br/>
+    <br/>
     <div id="graph_container" style="width: 100%">No Alerts to show yet</div>
-
 </div>
 {{end}}

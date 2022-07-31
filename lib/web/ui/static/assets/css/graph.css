@@ -68,7 +68,7 @@ div.page-options {
 .legend {
   display: inline-block;
   vertical-align: top;
-  margin: 0 0 0 60px;
+  margin: 10px 0 0 60px;
 }
 
 .graph_area {
@@ -159,4 +159,9 @@ input[name="end_input"], input[name="range_input"] {
 .graph_container .rickshaw_legend {
   background-color: #222222;
   border-radius: 0;
+}
+
+.timeline {
+  margin-left: 60px;
+  margin-right: 40px;
 }
