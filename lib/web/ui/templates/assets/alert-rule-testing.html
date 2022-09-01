@@ -17,12 +17,18 @@
 <script src="{{ pathPrefix }}/static/vendor/mustache/mustache.min.js?v={{ buildVersion }}"></script>
 <script src="{{ pathPrefix }}/static/vendor/js/jquery.selection.js?v={{ buildVersion }}"></script>
 <script src="{{ pathPrefix }}/static/vendor/js/jquery.hotkeys.js?v={{ buildVersion }}"></script>
+<script src="{{ pathPrefix }}/static/vendor/js/jquery.ui.min.js?v={{ buildVersion }}"></script>
+<link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/vendor/js/jquery.ui.min.css?v={{ buildVersion }}">
 
 <script id="graph_template" type="text/x-handlebars-template"></script>
 
 <link type="text/css" rel="stylesheet" href="{{ pathPrefix }}/static/css/alertsTest.css?v={{ buildVersion }}">
 <script src="{{ pathPrefix }}/static/js/alert_testing/index.js?v={{ buildVersion }}"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js" type="text/javascript" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.8.1/ace.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.8.1/theme-xcode.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.8.1/mode-yaml.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.8.1/ext-language_tools.min.js" type="text/javascript" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.8.1/ext-searchbox.min.js" type="text/javascript" charset="utf-8"></script>
 
 {{end}}
 
@@ -104,22 +110,38 @@
     </table>
     <br/>
     <h2>Alert Preview &amp; Graph</h2>
-    <div class="show-annotations is-checked" style="display: inline;">
-        <i class="glyphicon glyphicon-check"></i>
-        <button type="button" class="show-annotations" title="show annotations">Show annotations</button>
+    <div id="result_control_wrapper">
+        <div class="result_controls">
+            <div class="show-annotations is-checked" style="display: inline; white-space: nowrap">
+                <i class="glyphicon glyphicon-check"></i>
+                <button type="button" class="show-annotations" title="show annotations">Show annotations</button>
+            </div>
+            <div class="show-graphs is-checked" style="display: inline; white-space: nowrap">
+                <i class="glyphicon glyphicon-check"></i>
+                <button type="button" class="show-graphs" title="show graphs">Show graphs</button>
+            </div>
+            <div class="show-hide-all" style="display: inline; white-space: nowrap">
+                <button id="showAll" type="button" class="show-hide-all" title="open all">Open all</button>
+            </div>
+            <div class="show-hide-all" style="display: inline; white-space: nowrap">
+                <button id="hideAll" type="button" class="show-hide-all" title="close all">Close all</button>
+            </div>
+        </div>
+        <div class="alert_range_info">
+            <div class="alert_range_info_element">
+                <div class="alert_range_info_key">Start:</div>
+                <div id="alert_range_info_start" class="alert_range_info_value"></div>
+            </div>
+            <div class="alert_range_info_element">
+                <div class="alert_range_info_key">End:</div>
+                <div id="alert_range_info_end" class="alert_range_info_value"></div>
+            </div>
+            <div class="alert_range_info_element">
+                <div class="alert_range_info_key">Step:</div>
+                <div id="alert_range_info_step" class="alert_range_info_value"></div>
+            </div>
+        </div>
     </div>
-    <div class="show-graphs is-checked" style="display: inline;">
-        <i class="glyphicon glyphicon-check"></i>
-        <button type="button" class="show-graphs" title="show graphs">Show graphs</button>
-    </div>
-    <div class="show-hide-all" style="display: inline;">
-        <button id="showAll" type="button" class="show-hide-all" title="open all">Open all</button>
-    </div>
-    <div class="show-hide-all" style="display: inline;">
-        <button id="hideAll" type="button" class="show-hide-all" title="close all">Close all</button>
-    </div>
-    <br/>
-    <br/>
     <div id="graph_container" style="width: 100%">No Alerts to show yet</div>
 </div>
 {{end}}

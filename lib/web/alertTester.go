@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/cespare/xxhash/v2"
@@ -19,13 +18,13 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/util/stats"
+	htmlTemplate "html/template"
 	"math"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
-	textTemplate "text/template"
 	"time"
 	"unsafe"
 )
@@ -35,21 +34,21 @@ const (
 	alertTestingRoute       = "/alerts_testing"
 	alertRuleTestingRoute   = "/alert-rule-testing"
 	alertForStateMetricName = "ALERTS_FOR_STATE"
-	alertHtmlSnippet        = `name: {{ .Alert }}
-expr: {{ .Expr }}
-for: {{ .For }}
-{{- if .Labels }}
-labels:
-  {{- range $key, $value := .Labels }}
-    {{ $key }}: {{ $value }}
-  {{- end }}
-{{- end }}
-{{- if .Annotations }}
-annotations:
-  {{- range $key, $value := .Annotations }}
-    {{ $key }}: {{ $value }}
-  {{- end }}
-{{- end }}`
+	//	alertHtmlSnippet        = `name: {{ .Alert }}
+	//expr: {{ .Expr }}
+	//for: {{ .For }}
+	//{{- if .Labels }}
+	//labels:
+	//  {{- range $key, $value := .Labels }}
+	//    {{ $key }}: {{ $value }}
+	//  {{- end }}
+	//{{- end }}
+	//{{- if .Annotations }}
+	//annotations:
+	//  {{- range $key, $value := .Annotations }}
+	//    {{ $key }}: {{ $value }}
+	//  {{- end }}
+	//{{- end }}`
 )
 
 func init() {
@@ -174,12 +173,20 @@ func newAlertsTestResult() alertsTestResult {
 }
 
 type ruleResult struct {
-	Group           string             `json:"group"`
-	Name            string             `json:"name"`
+	Definition      *alertDefinition   `json:"definition"`
 	Alerts          *[]rules.Alert     `json:"alerts"`
 	MatrixResult    *queryData         `json:"matrixResult"`
 	ExprQueryResult *queryDataWithExpr `json:"exprQueryResult"`
-	HTMLSnippet     string             `json:"htmlSnippet"`
+}
+
+type alertDefinition struct {
+	Group        string              `json:"group"`
+	Name         string              `json:"name"`
+	Expr         string              `json:"expr"`
+	ExprTableUrl string              `json:"exprTableUrl"`
+	For          string              `json:"for"`
+	Labels       []map[string]string `json:"labels"`
+	Annotations  []map[string]string `json:"annotations"`
 }
 
 type queryData struct {
@@ -195,21 +202,21 @@ type queryDataWithExpr struct {
 }
 
 type alertTester struct {
-	templateExecutor         TemplateExecutor
-	queryable                remote.Queryable
-	config                   *config.WebConfig
-	alertHtmlSnippetTemplate *textTemplate.Template
+	templateExecutor TemplateExecutor
+	queryable        remote.Queryable
+	config           *config.WebConfig
+	//alertHtmlSnippetTemplate *textTemplate.Template
 }
 
 func NewAlertTester(config *config.WebConfig) (Route, error) {
-	alertHtmlSnippetTemplate := textTemplate.New("alertHtmlSnippet")
-	var err error
-	if alertHtmlSnippetTemplate, err = alertHtmlSnippetTemplate.Parse(alertHtmlSnippet); err != nil {
-		return nil, errors.Wrap(err, "failed to parse alert html snippet")
-	}
+	//alertHtmlSnippetTemplate := textTemplate.New("alertHtmlSnippet")
+	//var err error
+	//if alertHtmlSnippetTemplate, err = alertHtmlSnippetTemplate.Parse(alertHtmlSnippet); err != nil {
+	//	return nil, errors.Wrap(err, "failed to parse alert html snippet")
+	//}
 	return &alertTester{
-		config:                   config,
-		alertHtmlSnippetTemplate: alertHtmlSnippetTemplate,
+		config: config,
+		//alertHtmlSnippetTemplate: alertHtmlSnippetTemplate,
 	}, nil
 }
 
@@ -253,7 +260,7 @@ func (t *alertTester) alertsTesting(requestContext *gin.Context) {
 				if rule.Alert.Value == "" {
 					continue
 				}
-				htmlSnippet, alerts, matrixResult, exprQueryResult, errA := t.evaluateAlertRule(
+				alertDefinition, alerts, matrixResult, exprQueryResult, errA := t.evaluateAlertRule(
 					requestContext.Request.Context(),
 					t.queryable,
 					cfg.Start,
@@ -262,10 +269,8 @@ func (t *alertTester) alertsTesting(requestContext *gin.Context) {
 					group,
 					rule)
 				r := ruleResult{
-					Group:           group.Name,
-					Name:            rule.Alert.Value,
+					Definition:      alertDefinition,
 					Alerts:          alerts,
-					HTMLSnippet:     htmlSnippet,
 					MatrixResult:    matrixResult,
 					ExprQueryResult: exprQueryResult,
 				}
@@ -312,12 +317,6 @@ func (t *alertTester) parseAlertsTestingBody(r *http.Request) (*alertsTestingCon
 		}
 	}
 
-	// For safety, limit the number of returned points per timeseries.
-	// This is sufficient for 60s resolution for a week or 1h resolution for a year.
-	if end.Sub(start)/step > 11000 {
-		return nil, errors.New("failed to parse alert testing request: exceeded maximum resolution of 11,000 points")
-	}
-
 	configStringUnescaped, err := url.QueryUnescape(configString)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse alert testing request: could not unescape rule config")
@@ -336,10 +335,10 @@ func (t *alertTester) parseAlertsTestingBody(r *http.Request) (*alertsTestingCon
 	}, nil
 }
 
-func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Queryable, minTimestamp time.Time, maxTimestamp time.Time, step time.Duration, group rulefmt.RuleGroup, rule rulefmt.RuleNode) (string, *[]rules.Alert, *queryData, *queryDataWithExpr, error) {
+func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Queryable, minTimestamp time.Time, maxTimestamp time.Time, step time.Duration, group rulefmt.RuleGroup, rule rulefmt.RuleNode) (*alertDefinition, *[]rules.Alert, *queryData, *queryDataWithExpr, error) {
 	expr, err := parser.ParseExpr(rule.Expr.Value)
 	if err != nil {
-		return "", nil, nil, nil, errors.Wrap(err, "failed to parse the expression %q", rule.Expr)
+		return nil, nil, nil, nil, errors.Wrap(err, "failed to parse the expression %q", rule.Expr)
 	}
 	interval := time.Duration(group.Interval)
 	if interval <= 0 {
@@ -359,7 +358,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 
 	provider, err := queryable.QueryFuncProvider(minTimestamp, maxTimestamp, interval)
 	if err != nil {
-		return "", nil, nil, nil, errors.Wrap(err, "failed to create queryable")
+		return nil, nil, nil, nil, errors.Wrap(err, "failed to create queryable")
 	}
 
 	maxSamples := int((maxTimestamp.UnixMilli() - minTimestamp.UnixMilli()) / step.Milliseconds())
@@ -371,7 +370,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 		maxTimestamp,
 		interval)
 	if err != nil {
-		return "", nil, nil, nil, errors.Wrap(err, "failed to query %s from %d to %d", rule.Expr.Value, minTimestamp, maxTimestamp)
+		return nil, nil, nil, nil, errors.Wrap(err, "failed to query %s from %d to %d", rule.Expr.Value, minTimestamp, maxTimestamp)
 	}
 
 	queryMatrix = common.DownsampleMatrix(queryMatrix, maxSamples, true)
@@ -395,7 +394,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 			nil,
 			group.Limit)
 		if errA != nil {
-			return "", nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
+			return nil, nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
 		}
 		for _, smpl := range vec {
 			series, ok := seriesHashMap[smpl.Metric.Hash()]
@@ -435,11 +434,6 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 
 	matrix = common.DownsampleMatrix(matrix, maxSamples, false)
 
-	htmlSnippet, err := t.htmlSnippetWithoutLinks(alertingRule)
-	if err != nil {
-		return "", nil, nil, nil, err
-	}
-
 	var importantAlertTimestamps []time.Time
 	for ts := range importantAlertTimestampSet {
 		importantAlertTimestamps = append(importantAlertTimestamps, ts)
@@ -469,7 +463,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 			nil,
 			group.Limit)
 		if errA != nil {
-			return "", nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
+			return nil, nil, nil, nil, errors.Wrap(errA, "failed to evaluate rule %s at %d", rule.Expr.Value, ts)
 		}
 		alertingRule.ForEachActiveAlert(func(activeAlert *rules.Alert) {
 			aaHash := t.activeAlertHash(activeAlert)
@@ -518,7 +512,7 @@ func (t *alertTester) evaluateAlertRule(ctx context.Context, queryable remote.Qu
 		return activeAlertList[i].ActiveAt.Before(activeAlertList[j].ActiveAt)
 	})
 
-	return htmlSnippet,
+	return t.toAlertDefinition(group, alertingRule, minTimestamp, maxTimestamp),
 		&activeAlertList,
 		&queryData{
 			Result:     matrix,
@@ -539,26 +533,32 @@ func (t *alertTester) activeAlertHash(alert *rules.Alert) uint64 {
 	return xxhash.Sum64(buf)
 }
 
-func (t *alertTester) htmlSnippetWithoutLinks(r *rules.AlertingRule) (string, error) {
-	lbls := make(map[string]string, len(r.Labels()))
-	for _, l := range r.Labels() {
-		lbls[l.Name] = l.Value
+func (t *alertTester) toAlertDefinition(group rulefmt.RuleGroup, rule *rules.AlertingRule, startTime time.Time, endTime time.Time) *alertDefinition {
+	lbls := make([]map[string]string, len(rule.Labels()))
+	for i, l := range rule.Labels() {
+		lbls[i] = map[string]string{"name": l.Name, "value": l.Value}
 	}
-	annotations := make(map[string]string, len(r.Annotations()))
-	for _, l := range r.Annotations() {
-		annotations[l.Name] = l.Value
+	annotations := make([]map[string]string, len(rule.Annotations()))
+	for i, a := range rule.Annotations() {
+		annotations[i] = map[string]string{"name": a.Name, "value": a.Value}
 	}
-	ar := rulefmt.Rule{
-		Alert:       r.Name(),
-		Expr:        r.Query().String(),
-		For:         model.Duration(r.HoldDuration()),
-		Labels:      lbls,
-		Annotations: annotations,
+	return &alertDefinition{
+		Group:        group.Name,
+		Name:         rule.Name(),
+		Expr:         rule.Query().String(),
+		ExprTableUrl: t.graphLinkForExpression(rule.Query().String(), startTime, endTime),
+		For:          model.Duration(rule.HoldDuration()).String(),
+		Labels:       lbls,
+		Annotations:  annotations,
 	}
+}
 
-	var tpl bytes.Buffer
-	if err := t.alertHtmlSnippetTemplate.Execute(&tpl, ar); err != nil {
-		return "", errors.Wrap(err, "failed to execute alert html snippet template")
-	}
-	return tpl.String(), nil
+func (t *alertTester) graphLinkForExpression(expr string, startTime time.Time, endTime time.Time) string {
+	escapedExpression := url.QueryEscape(expr)
+	return fmt.Sprintf("%s/graph?g0.expr=%s&g0.tab=0&g0.range_input=%s&g0.end_input=%s&g0.moment_input=%s",
+		t.config.Host.String(),
+		escapedExpression,
+		model.Duration(endTime.Sub(startTime)).String(),
+		htmlTemplate.HTMLEscapeString(startTime.Format("2006-01-02 15:04:05")),
+		htmlTemplate.HTMLEscapeString(endTime.Format("2006-01-02 15:04:05")))
 }

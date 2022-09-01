@@ -161,7 +161,11 @@ input[name="end_input"], input[name="range_input"] {
   border-radius: 0;
 }
 
-.timeline {
+.slider {
+  margin-top: 10px;
+}
+
+.slider, .timeline {
   margin-left: 60px;
   margin-right: 40px;
 }

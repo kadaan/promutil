@@ -1,117 +1,138 @@
 <div class="container-fluid">
-  <table class="table table-bordered table-collapsed">
+  <table class="table-fixed table table-bordered table-collapsed">
     <tbody>
       <tr class="{{maxState}} alert_header" data-id="{{id}}">
-        <td><i class="icon-chevron-down"></i> <b>{{ruleName}}</b> ({{activeAlertsLength}} active)</td>
+        <td><i class="icon-chevron-down"></i> <b>{{definition.name}}</b> ({{activeAlertsLength}} active)</td>
       </tr>
       <tr class="alert_details">
         <td>
-          <div>
-            <pre><code>{{htmlSnippet}}</code></pre>
+          <div class="alert_definition">
+            <div>name: {{definition.name}}</div>
+            <div>expr: <a href="{{definition.exprTableUrl}}" target="_blank">{{definition.expr}}</a></div>
+            {{#definition.labels.length}}
+            <div class="alert_definition_group">
+              labels:
+              {{#definition.labels}}
+              <div class="alert_definition_subelement">{{name}}: {{value}}</div>
+              {{/definition.labels}}
+            </div>
+            {{/definition.labels.length}}
+            {{#definition.annotations.length}}
+            <div class="alert_definition_group">
+              annotations:
+              {{#definition.annotations}}
+              <div class="alert_definition_subelement">{{name}}: {{value}}</div>
+              {{/definition.annotations}}
+            </div>
+            {{/definition.annotations.length}}
           </div>
-          <table class="table table-bordered table-condensed alert_elements_table">
-            {{#activeAlerts}}
-            <tbody class="active_alert">
-              <tr class="active_alert_header">
-                <th id="{{id}}" colspan="4">{{name}}</th>
-              </tr>
-              <tr>
-                <td>
-                  {{#Labels}}
-                  <span class="label label-primary">{{key}}="{{value}}"</span>
-                  {{/Labels}}
-                </td>
-                <td><span class="alert alert-{{stateClass}} state_indicator text-uppercase">{{stateName}}</span></td>
-                <td rowspan="2">
-                  <div>
-                    <span class="alert_when_list_key">Pending: </span>
-                    <span class="alert_when_list_value">{{ActiveAt}}</span>
-                  </div>
-                  {{#FiredAt}}
-                  <div>
-                    <span class="alert_when_list_key">Fired: </span>
-                    <span class="alert_when_list_value">{{FiredAt}}</span>
-                  </div>
-                  {{/FiredAt}}
-                  {{#ResolvedAt}}
-                  <div>
-                    <span class="alert_when_list_key">Resolved: </span>
-                    <span class="alert_when_list_value">{{ResolvedAt}}</span>
-                  </div>
-                  {{/ResolvedAt}}
-                </td>
-                <td>
-                  <span class="alert_value_key">Value: </span>
-                  <span class="alert_value_value">{{Value}}</span>
-                </td>
-              </tr>
-              <tr class="alert_annotations">
-                <td colspan="2">
-                  <dl class="alert_annotations_list">
-                    {{#Annotations}}
-                    <dt class="alert_annotations_list_key">{{key}}</dt>
-                    <dd class="alert_annotations_list_value">{{value}}</dd>
-                    {{/Annotations}}
-                  </dl>
-                </td>
-              </tr>
-            </tbody>
-            {{/activeAlerts}}
-            <tbody>
-              <tr class="graph_header">
-                <th id="expr_graph_title{{id}}" colspan="4">Graph</th>
-              </tr>
-              <tr class="graph_body">
-                <td colspan="4">
-                  <div id="graph_wrapper{{id}}" class="graph_wrapper">
-                    <div class="query_form form-inline">
-                      <div class="row">
-                        <div class="col-lg-12">
-                          <div class="error alert alert-danger"></div>
+          <div id="error_wrapper{{id}}" class="row">
+            <div class="col-lg-12">
+              <div class="error alert alert-danger"></div>
+            </div>
+          </div>
+          <div id="result_wrapper{{id}}" class="active_alerts">
+            <table class="table table-bordered table-condensed alert_elements_table">
+              <tbody>
+                <tr class="graph_header">
+                  <th id="expr_graph_title{{id}}" colspan="4">Graph</th>
+                </tr>
+                <tr class="graph_body">
+                  <td colspan="4">
+                    <div id="graph_wrapper{{id}}" class="graph_wrapper">
+                      <div class="query_form form-inline">
+                        <div class="row">
+                          <div class="col-lg-12">
+                              <div class="clearfix">
+                                <div class="prometheus_input_group pull-left">
+                                  <div class="evaluation_message"></div>
+                                </div>
+                                <div class="prometheus_input_group pull-right">
+                                  <button type="button" class="btn btn-default stacked_btn">
+                                    <i class="glyphicon"></i> stacked
+                                  </button>
+                                  <input type="hidden" name="stacked" value="{{stacked}}">
+                                </div>
+                              </div>
+                              <div class="graph_area"></div>
+                              <div class="slider"></div>
+                              <div class="timeline"></div>
+                              <div class="legend"></div>
+                          </div>
                         </div>
                       </div>
-                      <div class="row">
-                        <div class="col-lg-12">
-                            <div class="clearfix">
-                              <div class="prometheus_input_group pull-left">
-                                <div class="evaluation_message"></div>
-                              </div>
-                              <div class="prometheus_input_group pull-right">
-                                <button type="button" class="btn btn-default stacked_btn">
-                                  <i class="glyphicon"></i> stacked
-                                </button>
-                                <input type="hidden" name="stacked" value="{{stacked}}">
-                              </div>
-                            </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="graph_header">
+                  <th id="alerts_graph_title" colspan="4"><u>Graph</u>: 'ALERTS'</th>
+                </tr>
+                <tr class="graph_body">
+                  <td colspan="4">
+                    <div id="alert_graph_wrapper{{id}}" class="graph_wrapper">
+                      <div class="query_form form-inline">
+                        <div class="row">
+                          <div class="col-lg-12">
                             <div class="graph_area"></div>
+                            <div class="slider"></div>
                             <div class="timeline"></div>
                             <div class="legend"></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-              </tr>
-              <tr class="graph_header">
-                <th id="alerts_graph_title" colspan="4"><u>Graph</u>: 'ALERTS'</th>
-              </tr>
-              <tr class="graph_body">
-                <td colspan="4">
-                  <div id="alert_graph_wrapper{{id}}" class="graph_wrapper">
-                    <div class="query_form form-inline">
-                      <div class="row">
-                        <div class="col-lg-12">
-                          <div class="graph_area"></div>
-                          <div class="timeline"></div>
-                          <div class="legend"></div>
-                        </div>
-                      </div>
+                  </td>
+                </tr>
+              </tbody>
+              {{#activeAlerts}}
+              <tbody class="active_alert">
+                <tr class="active_alert_header">
+                  <th id="{{id}}" colspan="4">{{name}}</th>
+                </tr>
+                <tr>
+                  <td>
+                    {{#Labels}}
+                    <span class="label label-primary">{{key}}="{{value}}"</span>
+                    {{/Labels}}
+                  </td>
+                  <td><span class="alert alert-{{stateClass}} state_indicator text-uppercase">{{stateName}}</span></td>
+                  <td rowspan="2">
+                    <div class="alert_when_list">
+                      <span class="alert_when_list_key">Pending: </span>
+                      <span class="alert_when_list_value">{{ActiveAt}}</span>
                     </div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    {{#FiredAt}}
+                    <div class="alert_when_list">
+                      <span class="alert_when_list_key">Fired: </span>
+                      <span class="alert_when_list_value">{{FiredAt}}</span>
+                    </div>
+                    {{/FiredAt}}
+                    {{#ResolvedAt}}
+                    <div class="alert_when_list">
+                      <span class="alert_when_list_key">Resolved: </span>
+                      <span class="alert_when_list_value">{{ResolvedAt}}</span>
+                    </div>
+                    {{/ResolvedAt}}
+                  </td>
+                  <td class="alert_value">
+                    <span class="alert_value_key">Value: </span>
+                    <span class="alert_value_value">{{Value}}</span>
+                  </td>
+                </tr>
+                <tr class="alert_annotations">
+                  <td colspan="2">
+                    <dl class="alert_annotations_list">
+                      {{#Annotations}}
+                      <dt class="alert_annotations_list_key">{{key}}</dt>
+                      <dd class="alert_annotations_list_value">{{value}}</dd>
+                      {{/Annotations}}
+                    </dl>
+                  </td>
+                </tr>
+              </tbody>
+              {{/activeAlerts}}
+            </table>
+          </div>
         </td>
       </tr>
     </tbody>

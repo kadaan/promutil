@@ -246,17 +246,17 @@ func NewCommand[C any](root RootCommand, use string, short string, long string, 
 		Short: short,
 		Long:  long,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			profiler, err := root.startProfiler()
+			p, err := root.startProfiler()
 			defer func(profiler io.Closer) {
-				err := profiler.Close()
-				if err != nil {
-					klog.Errorf("failed to close profiler: %w", err)
+				errP := profiler.Close()
+				if errP != nil {
+					klog.Errorf("failed to close profiler: %w", errP)
 				}
-			}(profiler)
+			}(p)
 			if err != nil {
 				return errors.Wrap(err, "failed to start profiler")
 			}
-			if err := task.Run(cfg); err != nil {
+			if err = task.Run(cfg); err != nil {
 				return errors.Wrap(err, "%s failed", use)
 			}
 			return nil
@@ -290,5 +290,8 @@ func (p *profiler) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	return errors.NewMulti(errs, "failed to close profiler")
+	if len(errs) > 0 {
+		return errors.NewMulti(errs, "failed to close profiler")
+	}
+	return nil
 }
