@@ -146,12 +146,12 @@ func (p *planner[V]) Plan(transform func(int64, int64, int64) []PlanEntry[V]) []
 	stepDuration := int64(p.config.SampleInterval() / (time.Millisecond / time.Nanosecond))
 	for ; blockStart <= endInMs; blockStart = blockStart + p.config.BlockDuration() {
 		blockEnd := blockStart + p.config.BlockDuration() - 1
-		currStart := p.max(blockStart/int64(time.Second/time.Millisecond), p.config.StartTime().Unix())
+		currStart := common.MaxInt64(blockStart/int64(time.Second/time.Millisecond), p.config.StartTime().Unix())
 		startWithAlignment := p.evalTimestamp(time.Unix(currStart, 0).UTC().UnixNano(), stepDuration)
 		for startWithAlignment.Unix() < currStart {
 			startWithAlignment = startWithAlignment.Add(p.config.SampleInterval())
 		}
-		end := time.Unix(p.min(blockEnd/int64(time.Second/time.Millisecond), p.config.EndTime().Unix()), 0).UTC()
+		end := time.Unix(common.MinInt64(blockEnd/int64(time.Second/time.Millisecond), p.config.EndTime().Unix()), 0).UTC()
 		if end.Equal(startWithAlignment) || end.Before(startWithAlignment) {
 			break
 		}
@@ -179,20 +179,6 @@ func (p *planner[V]) planBlock(blockStart time.Time, blockEnd time.Time, stepDur
 		}
 	}
 	return plan
-}
-
-func (p *planner[V]) max(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
-}
-
-func (p *planner[V]) min(x, y int64) int64 {
-	if x < y {
-		return x
-	}
-	return y
 }
 
 func (p *planner[V]) evalTimestamp(startTime int64, stepDuration int64) time.Time {
@@ -437,7 +423,7 @@ func (p *plannedBlockWriter[V]) Run() error {
 
 	go func() {
 		select {
-		case <-s.C:
+		case <-s.C():
 			klog.V(0).Infof("Stopping producer, consumers, and db")
 			cancel()
 		}

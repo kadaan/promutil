@@ -101,3 +101,31 @@ func JoinUrl(base *url.URL, paths ...string) (*url.URL, error) {
 	p := path.Join(paths...)
 	return url.Parse(fmt.Sprintf("%s/%s", strings.TrimRight(s, "/"), strings.TrimLeft(p, "/")))
 }
+
+func MaxInt64(x int64, y int64) int64 {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+func MinInt64(x int64, y int64) int64 {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func MaxUInt8(x uint8, y uint8) uint8 {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+func MinTime(x time.Time, y time.Time) time.Time {
+	if x.After(y) {
+		return y
+	}
+	return x
+}

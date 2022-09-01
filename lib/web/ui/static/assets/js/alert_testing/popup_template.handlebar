@@ -1,0 +1,16 @@
+<div class="alert_popup">
+    <div class="alert_popup_header">
+        <div class="alert_popup_name">
+            <a href="#{{id}}" onclick="(function(e){e.stopPropagation();})(arguments[0])">{{name}}</a>
+        </div>
+        <div class="alert_popup_status">
+            <span class="alert alert-{{stateClass}} state_indicator text-uppercase">{{stateName}}</span>
+        </div>
+        <div class="label label-default">{{Value}}</div>
+    </div>
+    <div class="alert_popup_body">
+        {{#Labels}}
+        <span class="label label-primary alert_popup_label">{{key}}="{{value}}"</span>
+        {{/Labels}}
+    </div>
+</div>

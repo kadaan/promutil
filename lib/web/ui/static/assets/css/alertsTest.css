@@ -48,7 +48,16 @@ div.show-hide-all button {
 }
 
 #ruleTextArea {
+    height: 350px;
     min-width: 100px;
+    flex: 1 1 auto;
+}
+
+#ruleTestInfo {
+    height: 100%;
+    background: white;
+    overflow: auto;
+    flex: 0 5 28.8%;
 }
 
 #dev_end,#inc_end,#dec_range,#inc_range,#range_input,#evaluate {
@@ -64,7 +73,7 @@ div.show-hide-all button {
 }
 
 .prometheus_input_group .input {
-    width: 100px;
+    width: 70px;
     height: 30px;
     padding: 6px 12px;
     font-size: 14px;
@@ -81,7 +90,7 @@ div.show-hide-all button {
 }
 
 .prometheus_input_group .date_input {
-    width: 200px;
+    width: 150px;
 }
 
 .alert_annotations_list {
@@ -100,10 +109,145 @@ div.show-hide-all button {
     border-style: none !important;
 }
 
-.alert_when_list_key {
+.alert_value {
+    display: flex;
+    flex-direction: row;
+    justify-content: right;
+    gap: 5px;
+}
+
+.alert_when_list {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 5px;
+}
+
+.alert_when_list_key, .alert_value_key, .alert_range_info_key {
     font-weight: bold;
 }
 
-.alert_when_list_key, .alert_when_list_value {
+.alert_when_list_key, .alert_when_list_value, .alert_value_key, .alert_value_value, .alert_range_info_key, .alert_range_info_value  {
     font-size: 75%;
+    white-space: nowrap;
+}
+
+.rickshaw_annotation_timeline .annotation.active .content {
+    width: min-content;
+    border-width: 1px !important;
+    border: #000;
+    border-style: solid;
+}
+
+.alert_popup {
+    display: flex;
+    flex-direction: column;
+    min-width: 250px;
+}
+
+.alert_popup_header {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.alert_popup_name, .alert_popup_status {
+    flex: 0 1 auto;
+    margin-right: 10px;
+}
+
+.alert_popup_value {
+    flex: 1 1 auto;
+}
+
+.alert_popup_body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.alert_popup_label {
+    margin: 2px;
+}
+
+.rickshaw_annotation_timeline .annotation:hover .content {
+    display: block;
+    z-index: 50;
+    width: min-content;
+    border-width: 1px !important;
+    border: #000;
+    border-style: solid;
+}
+
+.rickshaw_annotation_timeline .annotation.active, .rickshaw_annotation_timeline .annotation:hover {
+    cursor: pointer;
+}
+
+.alert_range_info {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: row;
+    justify-content: end;
+    margin-right: 40px;
+}
+
+.alert_range_info_element {
+    display: flex;
+    flex-direction: row;
+    flex: 0 1 auto;
+}
+
+.alert_range_info_key {
+    flex: 0 1 auto;
+    margin-left: 20px;
+    margin-right: 5px;
+}
+
+.alert_range_info_value {
+    flex: 1 1 auto;
+}
+
+#result_control_wrapper {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
+    align-items: center;
+    white-space: nowrap;
+    row-gap: 10px;
+    width: 100%;
+}
+
+.result_controls {
+    flex: 9999 1 auto;
+}
+
+.alert_definition {
+    display: block;
+    padding: 9.5px;
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.42857143;
+    color: #333;
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: Menlo,Monaco,Consolas,"Courier New",monospace;
+    overflow-x: scroll;
+    white-space: nowrap;
+}
+
+.alert_definition_subelement {
+    margin-left: 1.5em;
+}
+
+.alert_definition_group {
+    width: fit-content;
+}
+
+.table-fixed {
+    table-layout: fixed;
 }

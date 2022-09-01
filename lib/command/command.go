@@ -10,9 +10,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"io"
 	"k8s.io/klog/v2"
 	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
 )
 
 var (
@@ -22,6 +26,7 @@ var (
 type RootCommand interface {
 	Execute()
 	addCommand(cmd *cobra.Command)
+	startProfiler() (io.Closer, error)
 }
 
 func NewRootCommand(short string, long string) RootCommand {
@@ -42,15 +47,68 @@ func NewRootCommand(short string, long string) RootCommand {
 	r.addVersionCommand(r.cmd)
 	r.addCompletionCommand(r.cmd)
 	cobra.OnInitialize(r.initConfig)
+	r.cmd.PersistentFlags().StringVar(&r.cpuProfile, "cpuProfile", "", "Cpu profile result file")
+	r.cmd.PersistentFlags().StringVar(&r.memoryProfile, "memoryProfile", "", "Memory profile result file")
+	r.cmd.PersistentFlags().StringVar(&r.traceProfile, "traceProfile", "", "Trace profile result file")
 	r.cmd.PersistentFlags().CountVarP(&r.verbosity, "verbose", "v", "enables verbose logging (multiple times increases verbosity)")
 	r.cmd.PersistentFlags().StringVar(&r.cfgFile, "config", "", "config file (default is ."+version.Name+".config)")
 	return r
 }
 
 type rootCommand struct {
-	verbosity int
-	cfgFile   string
-	cmd       *cobra.Command
+	cpuProfile    string
+	memoryProfile string
+	traceProfile  string
+	verbosity     int
+	cfgFile       string
+	cmd           *cobra.Command
+}
+
+func (r *rootCommand) startProfiler() (io.Closer, error) {
+	p := profiler{}
+	if r.traceProfile != "" {
+		f, err := os.Create(r.traceProfile)
+		if err != nil {
+			return &p, errors.Wrap(err, "could not create Trace profile")
+		}
+		p.fileClosers = append(p.fileClosers, f)
+		if err = trace.Start(f); err != nil {
+			return &p, errors.Wrap(err, "could not start Trace profile")
+		}
+		p.methodClosers = append(p.methodClosers, func() error {
+			trace.Stop()
+			return nil
+		})
+	}
+	if r.cpuProfile != "" {
+		f, err := os.Create(r.cpuProfile)
+		if err != nil {
+			return &p, errors.Wrap(err, "could not create CPU profile")
+		}
+		p.fileClosers = append(p.fileClosers, f)
+		if err = pprof.StartCPUProfile(f); err != nil {
+			return &p, errors.Wrap(err, "could not start CPU profile")
+		}
+		p.methodClosers = append(p.methodClosers, func() error {
+			pprof.StopCPUProfile()
+			return nil
+		})
+	}
+	if r.memoryProfile != "" {
+		f, err := os.Create(r.memoryProfile)
+		if err != nil {
+			return &p, errors.Wrap(err, "could not create memory profile")
+		}
+		p.fileClosers = append(p.fileClosers, f)
+		p.methodClosers = append(p.methodClosers, func() error {
+			runtime.GC()
+			if err = pprof.WriteHeapProfile(f); err != nil {
+				return errors.Wrap(err, "could not write memory profile")
+			}
+			return nil
+		})
+	}
+	return &p, nil
 }
 
 func (r *rootCommand) addCommand(cmd *cobra.Command) {
@@ -188,7 +246,17 @@ func NewCommand[C any](root RootCommand, use string, short string, long string, 
 		Short: short,
 		Long:  long,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := task.Run(cfg); err != nil {
+			p, err := root.startProfiler()
+			defer func(profiler io.Closer) {
+				errP := profiler.Close()
+				if errP != nil {
+					klog.Errorf("failed to close profiler: %w", errP)
+				}
+			}(p)
+			if err != nil {
+				return errors.Wrap(err, "failed to start profiler")
+			}
+			if err = task.Run(cfg); err != nil {
 				return errors.Wrap(err, "%s failed", use)
 			}
 			return nil
@@ -203,4 +271,27 @@ func NewCommand[C any](root RootCommand, use string, short string, long string, 
 
 type Task[C any] interface {
 	Run(cfg *C) error
+}
+
+type profiler struct {
+	fileClosers   []io.Closer
+	methodClosers []func() error
+}
+
+func (p *profiler) Close() error {
+	var errs []error
+	for _, methodCloser := range p.methodClosers {
+		if err := methodCloser(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, fileCloser := range p.fileClosers {
+		if err := fileCloser.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return errors.NewMulti(errs, "failed to close profiler")
+	}
+	return nil
 }
