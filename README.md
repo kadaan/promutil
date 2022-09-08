@@ -231,6 +231,41 @@ Running migrate for 'my_other_metric{service="my_service"}' from 2022-06-17T17:0
 ...
 ```
 
+### Web
+
+##### Help
+```console
+$  ./promutil help web
+Runs an API/UI server for web based prometheus utilities.
+
+Usage:
+  promutil web [flags]
+
+Flags:
+  -h, --help                          help for web
+      --host url                      remote prometheus host (default "http://localhost:9090")
+      --listenAddress listenAddress   the listen address (default :8080)
+      --parallelism uint8             parallelism for backfill (default 16)
+      --sample-interval duration      interval at which samples will be taken within a range (default 15s)
+
+Global Flags:
+      --config string          config file (default is .promutil.config)
+      --cpuProfile string      Cpu profile result file
+      --memoryProfile string   Memory profile result file
+      --traceProfile string    Trace profile result file
+  -v, --verbose count          enables verbose logging (multiple times increases verbosity)
+```
+
+##### Example
+```console
+$ ./promutil web
+Press Ctrl-C to shutdown server
+Started server on :8080
+...
+```
+
+![image](https://user-images.githubusercontent.com/1904898/189195606-795f5741-8bba-4a64-aac6-1d8461dca17f.png)
+
 ## Changelog
 
 ### 0.0.3
