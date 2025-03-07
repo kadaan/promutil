@@ -34,21 +34,6 @@ const (
 	alertTestingRoute       = "/alerts_testing"
 	alertRuleTestingRoute   = "/alert-rule-testing"
 	alertForStateMetricName = "ALERTS_FOR_STATE"
-	//	alertHtmlSnippet        = `name: {{ .Alert }}
-	//expr: {{ .Expr }}
-	//for: {{ .For }}
-	//{{- if .Labels }}
-	//labels:
-	//  {{- range $key, $value := .Labels }}
-	//    {{ $key }}: {{ $value }}
-	//  {{- end }}
-	//{{- end }}
-	//{{- if .Annotations }}
-	//annotations:
-	//  {{- range $key, $value := .Annotations }}
-	//    {{ $key }}: {{ $value }}
-	//  {{- end }}
-	//{{- end }}`
 )
 
 func init() {
