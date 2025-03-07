@@ -1,4 +1,7 @@
+.DS_Store
+.devbox/
 data/
 dist/
 .idea/
 promutil
+*_vfsdata.go

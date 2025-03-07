@@ -34,10 +34,10 @@
           <div id="result_wrapper{{id}}" class="active_alerts">
             <table class="table table-bordered table-condensed alert_elements_table">
               <tbody>
-                <tr class="graph_header">
+                <tr class="graph_header" {{{graphsDisplay}}}>
                   <th id="expr_graph_title{{id}}" colspan="4">Graph</th>
                 </tr>
-                <tr class="graph_body">
+                <tr class="graph_body" {{{graphsDisplay}}}>
                   <td colspan="4">
                     <div id="graph_wrapper{{id}}" class="graph_wrapper">
                       <div class="query_form form-inline">
@@ -64,10 +64,10 @@
                     </div>
                   </td>
                 </tr>
-                <tr class="graph_header">
+                <tr class="graph_header" {{{graphsDisplay}}}>
                   <th id="alerts_graph_title" colspan="4"><u>Graph</u>: 'ALERTS'</th>
                 </tr>
-                <tr class="graph_body">
+                <tr class="graph_body" {{{graphsDisplay}}}>
                   <td colspan="4">
                     <div id="alert_graph_wrapper{{id}}" class="graph_wrapper">
                       <div class="query_form form-inline">
@@ -119,7 +119,7 @@
                     <span class="alert_value_value">{{Value}}</span>
                   </td>
                 </tr>
-                <tr class="alert_annotations">
+                <tr class="alert_annotations" {{{annotationsDisplay}}}>
                   <td colspan="2">
                     <dl class="alert_annotations_list">
                       {{#Annotations}}
